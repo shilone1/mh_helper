@@ -3,6 +3,7 @@ import random
 from mouse_action import random_click_mouse, click_mouse, drag_mouse_vertically
 import image_matching as im
 import cv2
+import numpy as np
 import pyautogui
 from config import *
 from logger import logger
@@ -144,7 +145,7 @@ def go_to_quest(template_path, mask_path=None, screen_area=window_capture_areas_
     for click, val in zip(clicks_activity_panel, vals):
         logger.info(f"Found activity panels, location {click} found value: {val}")
         random_click_mouse(click)
-    time.sleep(3)
+    time.sleep(random.uniform(3, 4))
 
     #If other timed daily is in the way
     clicks_daily_panel, vals = im.find_icon_each_window(select_daily_panel_path, 
@@ -154,6 +155,8 @@ def go_to_quest(template_path, mask_path=None, screen_area=window_capture_areas_
         logger.info(f"Not in daily panel, location {click} found value: {val}")
         random_click_mouse(click)
 
+    if any(click is not None for click in clicks_daily_panel):
+        time.sleep(random.uniform(3, 4))
     to_completes, vals = im.find_icon_each_window(template_path,
                                                   mask_path=mask_path,
                                                   screen_area=screen_area, 
@@ -239,38 +242,91 @@ def drag_inventory(window, direction="up", drag_area=inventory_area_):
     drag_mouse_vertically(area)
 
 
+def reset_inventory_to_top(window_capture_areas, drag_area=inventory_area_):
+    for window_idx, window in enumerate(window_capture_areas):
+        reset_drags = random.randint(4, 6)
+        logger.info(f"Resetting inventory window {window_idx} toward top: {reset_drags} drags")
+        drag_x1, drag_y1, drag_x2, drag_y2 = drag_area
+        window_x, window_y, _, _ = window
+        inventory_region = (
+            window_x + drag_x1,
+            window_y + drag_y1,
+            drag_x2 - drag_x1,
+            drag_y2 - drag_y1,
+        )
+        before_drag = np.array(pyautogui.screenshot(region=inventory_region))
+
+        for drag_idx in range(reset_drags):
+            logger.info(f"Reset drag {drag_idx + 1}/{reset_drags} for window {window_idx}")
+            drag_inventory(window, direction="up", drag_area=drag_area)
+            time.sleep(random.uniform(0.15, 0.35))
+            after_drag = np.array(pyautogui.screenshot(region=inventory_region))
+
+            similarity = cv2.matchTemplate(
+                after_drag,
+                before_drag,
+                cv2.TM_CCOEFF_NORMED,
+            )[0, 0]
+            logger.info(
+                f"Inventory window {window_idx} reset drag similarity: {similarity:.4f}"
+            )
+
+            if similarity >= 0.95:
+                logger.info(
+                    f"Inventory window {window_idx} is unchanged after reset drag; "
+                    "skipping remaining reset drags for this window"
+                )
+                break
+
+            before_drag = after_drag
+
+
 def choose_baotu_in_inventory():
     inventory_clicks,_ = im.find_icon_each_window(inventory_path, threshold=0.85)
     for click in inventory_clicks:
         random_click_mouse(click)
-    
-    search_phases = (
-        ("up", random.randint(4, 6)),
-        ("down", random.randint(4, 6)),
-    )
 
-    for window in window_capture_areas_:
-        logger.info(f"working on window {window}")
-        baotu_found = False
+    reset_inventory_to_top(window_capture_areas_)
 
-        for direction, max_drags in search_phases:
-            if baotu_found:
-                break
+    unresolved_windows = {
+        window_idx: window
+        for window_idx, window in enumerate(window_capture_areas_)
+    }
+    max_drags = random.randint(4, 6)
 
-            for attempt in range(max_drags):
-                result,_ = im.find_icon_on_screen(baotu_item_path, screen_area=window, threshold=0.85)
+    for search_iteration in range(max_drags + 1):
+        if not unresolved_windows:
+            break
 
-                if result != None:
-                    random_click_mouse(result, double_click=True)
-                    baotu_found = True
-                    break
+        logger.info(
+            f"Baotu search iteration {search_iteration + 1}/{max_drags + 1}; "
+            f"remaining windows: {list(unresolved_windows)}"
+        )
 
-                logger.info(f"Baotu search drag {attempt + 1}/{max_drags} direction={direction}")
-                drag_inventory(window, direction=direction)
-                time.sleep(random.uniform(0.5,1.5))
+        for window_idx, window in list(unresolved_windows.items()):
+            result, _ = im.find_icon_on_screen(
+                baotu_item_path,
+                screen_area=window,
+                threshold=0.85,
+            )
 
-        if not baotu_found:
-            logger.info("baotu not found or some bugs appeared")
+            if result is not None:
+                random_click_mouse(result, double_click=True)
+                del unresolved_windows[window_idx]
+                continue
+
+            if search_iteration < max_drags:
+                logger.info(
+                    f"Baotu not found in window {window_idx}; "
+                    f"dragging down {search_iteration + 1}/{max_drags}"
+                )
+                drag_inventory(window, direction="down")
+
+        if unresolved_windows and search_iteration < max_drags:
+            time.sleep(random.uniform(0.5, 1.5))
+
+    for window_idx in unresolved_windows:
+        logger.info(f"Baotu not found in window {window_idx}")
 
 
 def dig_baotu():
@@ -454,7 +510,7 @@ def perform_dungeons(elite=False, count=None):
 
         selection_click = click_selection_menu()
         random_click_mouse(*selection_click)
-        # time.sleep(3)
+        time.sleep(3)
 
         if elite:
             elite_dungeon_panel,_ = im.find_icon_on_screen(elite_dungeon_panel_path, screen_area=window_capture_areas_[0])
@@ -503,11 +559,13 @@ def perform_zhuagui(rounds=5):
         logger.info(f"Found double_exp_acquire_path, location {click} found value: {val}")
         random_click_mouse(click)
 
+    time.sleep(random.uniform(1,3))
     activity_click,_ = im.find_icon_on_screen(activity_panel_path, screen_area=window_capture_areas_[0])
     random_click_mouse(activity_click)
 
+    time.sleep(random.uniform(1,3))
     logger.info("Performing zhuagui.........")
-    zhuagui_click,_ = im.find_icon_on_screen(zhuagui_path, mask_path=mask_path_, screen_area=window_capture_areas_[0], threshold=0.9)
+    zhuagui_click,_ = im.find_icon_on_screen(zhuagui_path, mask_path=mask_path_, screen_area=window_capture_areas_[0], threshold=0.80)
     top_left_x, top_left_y, _, _ = zhuagui_click
 
     button_left = top_left_x + button_relative_area_[0]
@@ -546,6 +604,170 @@ def perform_zhuagui(rounds=5):
                 random_click_mouse(complete_click)
 
         time.sleep(random.uniform(5,8))
+
+def _dedup_by_x_center(boxes, keep_n=5):
+    boxes = sorted(boxes, key=lambda b: b[2] * b[3], reverse=True)
+    picked = []
+    for box in boxes:
+        x, _, w, _ = box
+        cx = x + w * 0.5
+        if any(abs(cx - (px + pw * 0.5)) < 0.6 * w for px, _, pw, _ in picked):
+            continue
+        picked.append(box)
+        if len(picked) == keep_n:
+            break
+    picked.sort(key=lambda b: b[0])
+    return picked
+
+
+def find_reward_slots(panel_bgr):
+    if panel_bgr is None or panel_bgr.size == 0:
+        raise ValueError("panel_bgr is empty/None")
+
+    height, width = panel_bgr.shape[:2]
+    x0 = int(0.38 * width)
+    y0 = int(0.12 * height)
+    x1 = int(0.96 * width)
+    y1 = int(0.45 * height)
+    roi = panel_bgr[y0:y1, x0:x1]
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(gray, 60, 140)
+    edges = cv2.dilate(edges, None, iterations=2)
+
+    row_sum = edges.sum(axis=1).astype(np.float32)
+    row_sum = cv2.GaussianBlur(row_sum.reshape(-1, 1), (1, 31), 0).reshape(-1)
+
+    roi_height = edges.shape[0]
+    search_top = int(0.45 * roi_height)
+    search_bottom = int(0.95 * roi_height)
+    center_y = int(np.argmax(row_sum[search_top:search_bottom]) + search_top)
+
+    band_half = max(18, int(0.18 * roi_height))
+    band_y0 = max(0, center_y - band_half)
+    band_y1 = min(roi_height, center_y + band_half)
+    edges_band = edges[band_y0:band_y1, :]
+
+    contours, _ = cv2.findContours(edges_band, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    band_height, band_width = edges_band.shape[:2]
+    band_area = float(band_width * band_height)
+
+    candidates = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+        aspect = w / float(h) if h else 999
+
+        if area < 0.01 * band_area or area > 0.25 * band_area:
+            continue
+        if not (0.75 <= aspect <= 1.35):
+            continue
+
+        candidates.append((x0 + x + 2, y0 + band_y0 + y + 2, w - 4, h - 4))
+
+    return _dedup_by_x_center(candidates, keep_n=5)
+
+
+def _outer_frame_mask(height, width, thickness=2, inset=0):
+    thickness = max(1, min(thickness, min(height, width) // 4))
+    inset = max(0, min(inset, max(0, min(height, width) // 3)))
+
+    y0 = inset
+    y1 = max(y0 + 1, height - inset)
+    x0 = inset
+    x1 = max(x0 + 1, width - inset)
+
+    mask = np.zeros((height, width), np.uint8)
+    mask[y0:y0 + thickness, x0:x1] = 255
+    mask[y1 - thickness:y1, x0:x1] = 255
+    mask[y0:y1, x0:x0 + thickness] = 255
+    mask[y0:y1, x1 - thickness:x1] = 255
+    return mask
+
+
+def _crop_with_padding(img_bgr, box, pad=2):
+    x, y, w, h = box
+    height, width = img_bgr.shape[:2]
+    x0 = max(0, x - pad)
+    y0 = max(0, y - pad)
+    x1 = min(width, x + w + pad)
+    y1 = min(height, y + h + pad)
+    return img_bgr[y0:y1, x0:x1]
+
+
+def _rarity_scores_from_mask(hsv_img, frame_mask):
+    border_pixels = hsv_img[frame_mask]
+    if border_pixels.size == 0:
+        return {
+            "white": 0,
+            "blue": 0,
+            "yellow": 0,
+            "green": 0,
+            "purple": 0,
+            "orange": 0,
+        }
+
+    hue = border_pixels[:, 0]
+    saturation = border_pixels[:, 1]
+    value = border_pixels[:, 2]
+
+    return {
+        "white": int(((saturation <= 60) & (value >= 170)).sum()),
+        "blue": int(((hue >= 85) & (hue <= 110) & (saturation >= 120) & (value >= 120)).sum()),
+        "yellow": int(((hue >= 15) & (hue <= 35) & (saturation >= 150) & (value >= 140)).sum()),
+        "green": int(((hue >= 45) & (hue <= 84) & (saturation >= 120) & (value >= 110)).sum()),
+        "purple": int(((hue >= 125) & (hue <= 170) & (saturation >= 80) & (value >= 120)).sum()),
+        "orange": int(((((hue <= 14) | (hue >= 175)) & (saturation >= 150) & (value >= 140))).sum()),
+    }
+
+
+def classify_rarity(slot_bgr, frame_inset=2):
+    height, width = slot_bgr.shape[:2]
+    if height == 0 or width == 0:
+        return "unknown"
+
+    hsv = cv2.cvtColor(slot_bgr, cv2.COLOR_BGR2HSV)
+    outer_scores = _rarity_scores_from_mask(
+        hsv, _outer_frame_mask(height, width, thickness=2, inset=0) > 0
+    )
+    inset_scores = _rarity_scores_from_mask(
+        hsv, _outer_frame_mask(height, width, thickness=2, inset=frame_inset) > 0
+    )
+    scores = {label: max(outer_scores[label], inset_scores[label]) for label in outer_scores}
+
+    best_label = max(scores, key=scores.get)
+    if scores[best_label] < 12:
+        return "unknown"
+    return best_label
+
+
+def get_rarities(panel_bgr):
+    slots = find_reward_slots(panel_bgr)
+    rarities = [
+        classify_rarity(_crop_with_padding(panel_bgr, slot, pad=2))
+        for slot in slots
+    ]
+    return not any(rarity in ("purple", "orange") for rarity in rarities)
+
+
+def get_refresh_decisions(full_img_bgr, window_areas=window_capture_areas_):
+    if full_img_bgr is None or full_img_bgr.size == 0:
+        raise ValueError("full_img_bgr is empty/None")
+
+    decisions = []
+    height, width = full_img_bgr.shape[:2]
+    for x, y, w, h in window_areas:
+        x0 = max(0, min(x, width))
+        y0 = max(0, min(y, height))
+        x1 = max(x0, min(x + w, width))
+        y1 = max(y0, min(y + h, height))
+        decisions.append(get_rarities(full_img_bgr[y0:y1, x0:x1]))
+    return decisions
+
+def capture_full_screenshot():
+    screenshot = pyautogui.screenshot()
+    return cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
 def return_home():
     expand_bottom_clicks, vals = im.find_icon_each_window(expand_bottom_path) 

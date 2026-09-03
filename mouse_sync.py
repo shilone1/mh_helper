@@ -17,10 +17,6 @@ def main() -> None:
     for i in range(len(bm.window_capture_areas_)):
         print("  ", bm.area_str(i))
     print("[KEYS] SPACE toggle | F6 FAST_MODE | F7 test | ESC quit")
-    print(
-        f"[INFO] system_double_click={bm.get_system_double_click_time_s():.3f}s, "
-        f"using={bm.double_max_dt_s:.3f}s"
-    )
 
     worker_thread = threading.Thread(target=bm.worker_loop, daemon=True)
     worker_thread.start()

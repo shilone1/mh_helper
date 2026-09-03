@@ -24,23 +24,18 @@ window_capture_areas_ = [
 # =========================
 base_delay_s = 0.018
 delay_jitter_s = 0.006
-gauss_sigma_px = 2.0
+gauss_sigma_px = 5.0
 restore_cursor = True
 
 START_BROADCAST_DELAY_S = 0.02
-min_event_interval_s = 0.02
 
 # smooth move (fast but still smooth)
 click_pause_before_s = (0.0, 0.006)
 click_pause_after_s  = (0.0, 0.004)
 
-error_probability = 0.05
-error_range_px = (-2, 2)
-
-# double click behavior
-double_max_dist_px = 6
-double_gap_s = 0.05
-double_gap_jitter_s = 0.015
+error_probability = 0.15
+error_range_px = (-10, 10)
+miss_click_probability = 0.10
 
 # =========================
 # FAST mode tunables (near-same-time)
@@ -57,6 +52,7 @@ FAST_click_pause_before_s = (0.0, 0.0)
 FAST_click_pause_after_s  = (0.0, 0.0)
 
 FAST_error_probability = 0.0
+FAST_miss_click_probability = 0.0
 FAST_use_smooth_move = False   # IMPORTANT: teleport for max speed
 
 # =========================
@@ -66,10 +62,6 @@ TOGGLE_KEY = keyboard.Key.space
 QUIT_KEY   = keyboard.Key.esc
 TEST_KEY   = keyboard.Key.f7
 FAST_KEY   = keyboard.Key.f6
-
-DEBUG = False
-PRINT_EVERY_MOUSE_EVENT = False
-PRINT_WORKER_ACTIONS = False
 
 # =========================
 # Win32 API
@@ -95,17 +87,14 @@ class MOUSEINPUT(ctypes.Structure):
 class INPUT(ctypes.Structure):
     _fields_ = [("type", wintypes.DWORD), ("mi", MOUSEINPUT)]
 
-def get_system_double_click_time_s() -> float:
-    return user32.GetDoubleClickTime() / 1000.0
-
-double_max_dt_s = get_system_double_click_time_s() * 0.7
-
 def _send_input(flags: int):
     inp = INPUT(
         type=INPUT_MOUSE,
         mi=MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=flags, time=0, dwExtraInfo=None),
     )
-    user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+    sent = user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+    if sent != 1:
+        raise ctypes.WinError()
 
 def click_left():
     _send_input(MOUSEEVENTF_LEFTDOWN)
@@ -116,11 +105,19 @@ def click_right():
     _send_input(MOUSEEVENTF_RIGHTUP)
 
 def set_cursor_pos(x: int, y: int):
-    user32.SetCursorPos(int(x), int(y))
+    x, y = int(x), int(y)
+    if user32.SetCursorPos(x, y):
+        return True
+
+    # SetCursorPos can fail transiently without setting a useful Win32 error.
+    # Retry once and let the next movement step continue if it still fails.
+    time.sleep(0)
+    return bool(user32.SetCursorPos(x, y))
 
 def get_cursor_pos():
     pt = wintypes.POINT()
-    user32.GetCursorPos(ctypes.byref(pt))
+    if not user32.GetCursorPos(ctypes.byref(pt)):
+        raise ctypes.WinError()
     return pt.x, pt.y
 
 def screen_w():
@@ -138,11 +135,6 @@ def point_in_area(area, x, y):
 
 def clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
-
-def dist2(ax, ay, bx, by):
-    dx = ax - bx
-    dy = ay - by
-    return dx * dx + dy * dy
 
 def find_master_index(x, y):
     for i, area in enumerate(window_capture_areas_):
@@ -172,10 +164,10 @@ def move_cursor_smoothly(target_x, target_y):
 
     start_x, start_y = get_cursor_pos()
 
-    duration = random.uniform(0.004, 0.015)
+    duration = random.uniform(0.006, 0.020)
     dt = 0.001
     steps = max(1, int(duration / dt))
-    steps = min(steps, 18)
+    steps = min(steps, 22)
 
     dx = (target_x - start_x) / steps
     dy = (target_y - start_y) / steps
@@ -194,11 +186,8 @@ def move_cursor_smoothly(target_x, target_y):
 enabled = True
 evt_q = queue.Queue(maxsize=50)
 
-injecting = False
+injecting = threading.Event()
 inject_lock = threading.Lock()
-
-last_inject_end_t = time.time()
-POST_INJECT_NO_DOUBLE_S = 0.35
 
 def _get_mode_params():
     """Return the active params depending on FAST_MODE."""
@@ -213,6 +202,7 @@ def _get_mode_params():
             click_after=FAST_click_pause_after_s,
             err_p=FAST_error_probability,
             err_rng=error_range_px,
+            miss_click_p=FAST_miss_click_probability,
             use_smooth=FAST_use_smooth_move,
         )
     else:
@@ -226,13 +216,13 @@ def _get_mode_params():
             click_after=click_pause_after_s,
             err_p=error_probability,
             err_rng=error_range_px,
+            miss_click_p=miss_click_probability,
             use_smooth=True,
         )
 
-def _inject_at_screen(sx, sy, kind: str, params):
-    global injecting, last_inject_end_t
+def _inject_at_screen(sx, sy, kind: str, params, bounds=None):
     with inject_lock:
-        injecting = True
+        injecting.set()
         try:
             if params["use_smooth"]:
                 move_cursor_smoothly(sx, sy)
@@ -243,20 +233,19 @@ def _inject_at_screen(sx, sy, kind: str, params):
                 set_cursor_pos(sx, sy)
 
             tx, ty = add_human_error(sx, sy, params["err_p"], params["err_rng"])
-            tx = clamp(tx, 0, screen_w() - 1)
-            ty = clamp(ty, 0, screen_h() - 1)
+            if bounds is None:
+                x_min, y_min, x_max, y_max = 0, 0, screen_w() - 1, screen_h() - 1
+            else:
+                ax, ay, aw, ah = bounds
+                x_min, y_min, x_max, y_max = ax, ay, ax + aw - 1, ay + ah - 1
+            tx = clamp(tx, x_min, x_max)
+            ty = clamp(ty, y_min, y_max)
             set_cursor_pos(int(tx), int(ty))
 
             if kind == "left":
                 click_left()
             elif kind == "right":
                 click_right()
-            elif kind == "double_left":
-                click_left()
-                gap = double_gap_s + random.uniform(-double_gap_jitter_s, double_gap_jitter_s)
-                if gap > 0:
-                    time.sleep(gap)
-                click_left()
             else:
                 raise ValueError(f"Unknown click kind: {kind}")
 
@@ -264,10 +253,9 @@ def _inject_at_screen(sx, sy, kind: str, params):
                 time.sleep(random.uniform(*params["click_after"]))
 
         finally:
-            injecting = False
-            last_inject_end_t = time.time()
+            injecting.clear()
 
-def broadcast_click(sx, sy, kind: str, reason: str = "mouse_release"):
+def broadcast_click(sx, sy, kind: str):
     params = _get_mode_params()
 
     master_idx = find_master_index(sx, sy)
@@ -280,62 +268,75 @@ def broadcast_click(sx, sy, kind: str, reason: str = "mouse_release"):
     rel_x = sx - mx0
     rel_y = sy - my0
 
-    # blast children
-    for i, (ax, ay, aw, ah) in enumerate(window_capture_areas_):
-        if i == master_idx:
-            continue
-        if stop_event.is_set():
-            break
+    try:
+        child_number = 0
+        for i, area in enumerate(window_capture_areas_):
+            if i == master_idx:
+                continue
+            if stop_event.is_set():
+                break
 
-        tx = ax + rel_x
-        ty = ay + rel_y
+            if random.random() < params["miss_click_p"]:
+                continue
 
-        if params["gauss_sigma_px"] > 0:
-            tx += random.gauss(0.0, params["gauss_sigma_px"])
-            ty += random.gauss(0.0, params["gauss_sigma_px"])
+            ax, ay, aw, ah = area
+            tx = ax + rel_x
+            ty = ay + rel_y
 
-        tx = clamp(tx, ax, ax + aw - 1)
-        ty = clamp(ty, ay, ay + ah - 1)
+            if params["gauss_sigma_px"] > 0:
+                tx += random.gauss(0.0, params["gauss_sigma_px"])
+                ty += random.gauss(0.0, params["gauss_sigma_px"])
 
-        delay = i * params["base_delay_s"]
-        if params["delay_jitter_s"] > 0:
-            delay += random.uniform(-params["delay_jitter_s"], params["delay_jitter_s"])
-            if delay < 0:
-                delay = 0.0
+            tx = clamp(tx, ax, ax + aw - 1)
+            ty = clamp(ty, ay, ay + ah - 1)
 
-        if delay > 0 and not stop_event.is_set():
-            time.sleep(delay)
+            delay = child_number * params["base_delay_s"]
+            child_number += 1
+            if params["delay_jitter_s"] > 0:
+                delay = max(0.0, delay + random.uniform(
+                    -params["delay_jitter_s"], params["delay_jitter_s"]
+                ))
 
-        if not stop_event.is_set():
-            _inject_at_screen(int(tx), int(ty), kind, params)
+            if delay > 0 and stop_event.wait(delay):
+                break
 
-    # restore cursor only in NORMAL mode (or if you enable it in FAST)
-    if params["restore_cursor"] and not stop_event.is_set():
-        if params["use_smooth"]:
-            move_cursor_smoothly(ox, oy)
-        else:
-            set_cursor_pos(ox, oy)
+            _inject_at_screen(int(tx), int(ty), kind, params, bounds=area)
+    finally:
+        if params["restore_cursor"] and not stop_event.is_set():
+            if params["use_smooth"]:
+                move_cursor_smoothly(ox, oy)
+            else:
+                set_cursor_pos(ox, oy)
+
+def click_master_and_children(sx, sy, kind: str):
+    """Inject one click in the source window, then copy it to every child."""
+    master_idx = find_master_index(sx, sy)
+    if master_idx is None:
+        raise ValueError(f"Click position ({sx}, {sy}) is outside all configured windows")
+
+    params = _get_mode_params()
+    _inject_at_screen(
+        sx,
+        sy,
+        kind,
+        params,
+        bounds=window_capture_areas_[master_idx],
+    )
+    broadcast_click(sx, sy, kind)
 
 def worker_loop():
     while not stop_event.is_set():
         try:
             try:
-                kind, sx, sy, reason = evt_q.get(timeout=0.1)
+                kind, sx, sy = evt_q.get(timeout=0.1)
             except queue.Empty:
                 continue
 
-            # drain backlog, keep latest only
-            while True:
-                try:
-                    kind, sx, sy, reason = evt_q.get_nowait()
-                except queue.Empty:
-                    break
-
             if enabled and not stop_event.is_set():
                 params = _get_mode_params()
-                if params["start_delay_s"] > 0:
-                    time.sleep(params["start_delay_s"])
-                broadcast_click(sx, sy, kind, reason=reason)
+                if params["start_delay_s"] > 0 and stop_event.wait(params["start_delay_s"]):
+                    break
+                broadcast_click(sx, sy, kind)
 
         except Exception:
             traceback.print_exc()
@@ -343,20 +344,12 @@ def worker_loop():
 # =========================
 # Listeners
 # =========================
-_last_evt_press_t = 0.0
-_last_left_release_t = 0.0
-_last_left_release_xy = (0, 0)
-
 def on_click(x, y, button, pressed):
-    global _last_evt_press_t, _last_left_release_t, _last_left_release_xy
-
     if stop_event.is_set():
         return
 
     sx, sy = int(x), int(y)
-    now = time.time()
-
-    if injecting:
+    if injecting.is_set():
         return
 
     if not enabled:
@@ -365,32 +358,16 @@ def on_click(x, y, button, pressed):
     if find_master_index(sx, sy) is None:
         return
 
-    # rate-limit only on press
     if pressed:
-        if now - _last_evt_press_t < min_event_interval_s:
-            return
-        _last_evt_press_t = now
-        return  # enqueue on RELEASE only
+        return
 
     # release
     try:
         if button == mouse.Button.left:
-            lx, ly = _last_left_release_xy
-
-            if now - last_inject_end_t < POST_INJECT_NO_DOUBLE_S:
-                is_double = False
-            else:
-                is_double = (now - _last_left_release_t) <= double_max_dt_s and \
-                            dist2(sx, sy, lx, ly) <= (double_max_dist_px * double_max_dist_px)
-
-            _last_left_release_t = now
-            _last_left_release_xy = (sx, sy)
-
-            kind = "double_left" if is_double else "left"
-            evt_q.put_nowait((kind, sx, sy, "mouse_release"))
+            evt_q.put_nowait(("left", sx, sy))
 
         elif button == mouse.Button.right:
-            evt_q.put_nowait(("right", sx, sy, "mouse_release"))
+            evt_q.put_nowait(("right", sx, sy))
 
     except queue.Full:
         pass
@@ -413,7 +390,7 @@ def on_key_press(key):
             cx = ax + aw // 2
             cy = ay + ah // 2
             try:
-                evt_q.put_nowait(("left", cx, cy, "test_f7"))
+                evt_q.put_nowait(("left", cx, cy))
                 print(f"[TEST] enqueue left at win0 center ({cx},{cy})")
             except queue.Full:
                 pass
@@ -422,5 +399,5 @@ def on_key_press(key):
             stop_event.set()
             return False
     except Exception:
-        pass
+        traceback.print_exc()
 

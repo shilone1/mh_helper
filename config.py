@@ -33,6 +33,9 @@ dungeon_paths_ = [{"template_path": a1_path, "filter_range":None},
 
 game_promotion_path = resource_path("img_templates", "game_promotion.png")
 open_lottery_path = resource_path("img_templates", "open_lottery.png")
+lottery_refresh_path = resource_path("img_templates", "lottery_refresh.png")
+lottery_close_path = resource_path("img_templates", "lottery_close.png")
+fuli_close_path = resource_path("img_templates", "fuli_close.png")
 
 activity_panel_path = resource_path("img_templates", "activity_panel.png")
 quest_template_path = resource_path("img_templates", "b.png")
@@ -79,6 +82,7 @@ my_party_recruit_path = resource_path("img_templates", "my_party_recruit.png")
 party_accept_path = resource_path("img_templates", "party_accept.png")
 party_panel_close_path = resource_path("img_templates", "party_panel_close.png")
 party_recruit_close_path = resource_path("img_templates", "party_recruit_close.png")
+party_recruit_close_1_path = resource_path("img_templates", "party_recruit_close_1.png")
 recruit_hall_close_path = resource_path("img_templates", "recruit_hall_close.png")
 
 in_battle_icon_path = resource_path("img_templates", "in_battle.png")
@@ -120,6 +124,9 @@ market_launch_path = resource_path("img_templates", "market_launch.png")
 confirm_seven_days_path = resource_path("img_templates", "confirm_seven_days.png")
 market_sell_confirm_path = resource_path("img_templates", "market_sell_confirm.png")
 market_close_path = resource_path("img_templates", "market_close.png")
+item_option_more_path = resource_path("img_templates", "item_option_more.png")
+item_vast_use_path = resource_path("img_templates", "item_vast_use.png")
+item_use_confirm_path = resource_path("img_templates", "item_use_confirm.png")
 inventory_arrange_path = resource_path("img_templates", "inventory_arrange.png")
 
 mengjing_path = resource_path("img_templates", "mengjing.png")

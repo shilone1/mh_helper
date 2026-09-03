@@ -137,5 +137,5 @@ if __name__ == "__main__":
     # random_click_mouse((475, 360, 600, 380))
     ocr = PaddleOCR(use_angle_cls=True, lang='ch', show_log=False)
     print("OCR loading completed") 
-    #night_daily()
-    dungeon_process()
+    night_daily()
+    # dungeon_process()

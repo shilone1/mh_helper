@@ -43,7 +43,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--kind",
-        choices=["left", "right", "double_left"],
+        choices=["left", "right"],
         default="left",
         help="click type",
     )
@@ -64,7 +64,7 @@ def main() -> None:
     wait_until_epoch(fire_epoch)
 
     t_exec_bj = dt.datetime.now(BJ_TZ)
-    bm.broadcast_click(args.x, args.y, args.kind, reason="beijing_noon_schedule")
+    bm.broadcast_click(args.x, args.y, args.kind)
     print(f"[DONE] executed at(BJ): {t_exec_bj.isoformat()}")
 
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime, time as datetime_time, timezone, timedelta
 import json
 import os
 import random
@@ -14,6 +15,7 @@ import image_matching as im
 from config import *
 from helpers import *
 from logger import logger
+from trace_input import run_full_trace_procedure
 
 class state(ABC):
     def __init__(self, name):
@@ -35,6 +37,46 @@ def register_state(cls):
     return cls
 
 @register_state
+class perform_menghuan_lottery(state):
+
+    def execute(self):
+        fuli_clicks, vals = im.find_icon_each_window(game_promotion_path, threshold=0.8)
+        for click, val in zip(fuli_clicks, vals):
+            logger.info(f"fuli at {click} with val: {val}")
+            random_click_mouse(click)
+        
+        open_lottery_clicks, vals = im.find_icon_each_window(open_lottery_path, threshold=0.8)
+        for click, val in zip(open_lottery_clicks, vals):
+            logger.info(f"open_lottery at {click} with val: {val}")
+            random_click_mouse(click)
+
+        lottery_refresh_clicks, _ = im.find_icon_each_window(lottery_refresh_path, threshold=0.8)
+
+        screenshot = capture_full_screenshot()
+        should_refreshs = get_refresh_decisions(screenshot)
+        for refresh, click in zip(should_refreshs, lottery_refresh_clicks):
+            logger.info(f"lottery_refresh at {click} with val: {refresh}")
+            if refresh:
+                random_click_mouse(click)
+
+        time.sleep(random.uniform(3,5))
+        menghuan_lottery_areas, vals = im.find_icon_each_window(menghuan_lottery_path, threshold=0.60)
+        for area, val in zip(menghuan_lottery_areas, vals):
+            logger.info(f"menghuan_lottery at {area} with val: {val}")
+            if area is not None:
+                scratch_horizontally(area)
+
+        lottery_close_clicks, vals = im.find_icon_each_window(lottery_close_path, threshold=0.8)
+        for click, val in zip(lottery_close_clicks, vals):
+            logger.info(f"lottery_close at {click} with val: {val}")
+            random_click_mouse(click)
+
+        fuli_close_clicks, vals = im.find_icon_each_window(fuli_close_path, threshold=0.8)
+        for click, val in zip(fuli_close_clicks, vals):
+            logger.info(f"fuli_close at {click} with val: {val}")
+            random_click_mouse(click)
+
+@register_state
 class perform_shimen(state):
 
     def execute(self):
@@ -53,8 +95,18 @@ class perform_shimen(state):
         logger.info("Shimen accepting phase.........")
         to_completes,_ = im.find_icon_each_window(shimen_accept_path, threshold=0.90)
 
-        for i in to_completes:
-            random_click_mouse(i)
+        for window_index, to_complete in enumerate(to_completes):
+            if to_complete is None:
+                continue
+            random_click_mouse(to_complete)
+            trace_result = run_full_trace_procedure(window_capture_areas_[window_index])
+            if trace_result is True:
+                random_click_mouse(shimen_clicks[window_index])
+                random_click_mouse(to_complete)
+            elif trace_result is False:
+                logger.warning(
+                    f"Window {window_index} did not complete the two-round trace procedure"
+                )
 
         is_window_finished = [False] * len(shimen_clicks)
         is_windows_stcuked = [0] * len(shimen_clicks)
@@ -194,7 +246,7 @@ class perform_mijing(state):
 
     def execute(self):
         go_to_quest(mijing_path,mask_path=mask_path_, threshold=0.85)
-        time.sleep(random.uniform(2,5))
+        time.sleep(random.uniform(5,7))
 
         selection_clicks = click_selection_menu(expected_num=len(window_capture_areas_),
                                                 previous_task=mijing_path,
@@ -209,7 +261,7 @@ class perform_mijing(state):
                 logger.info(f"At location {click} found value: {val}")
                 random_click_mouse(click)
             
-            time.sleep(random.uniform(2,5))
+            time.sleep(random.uniform(5,7))
 
             logger.info("Mijing Confirming choices.............")
             clicks_mijing_confirm, vals = im.find_icon_each_window(mijing_confirm_path)
@@ -217,7 +269,7 @@ class perform_mijing(state):
                 logger.info(f"At location {click} found value: {val}")
                 random_click_mouse(click)
 
-            time.sleep(random.uniform(2,5))
+        time.sleep(random.uniform(5,7))
 
         logger.info("Clicking Mijing continue battle.........")
         mijing_continue_battles,_ = im.find_icon_each_window(mijing_continue_battle_path)
@@ -363,39 +415,49 @@ class perform_create_party(state):
     def execute(self):
         captain_window = window_capture_areas_[0]
         random_click_mouse(party_panel)
-        time.sleep(random.uniform(0.1,0.3))
+        time.sleep(random.uniform(1.0, 2.0))
         
         recruit_click,_ = im.find_icon_on_screen(recruit_button_path,screen_area=captain_window)
         random_click_mouse(recruit_click)
-        time.sleep(random.uniform(0.1,0.3))
+        time.sleep(random.uniform(1.0, 2.0))
 
         recruit_hall_click,_ = im.find_icon_on_screen(recruit_hall_path,screen_area=captain_window)
         random_click_mouse(recruit_hall_click)
-        time.sleep(random.uniform(0.5,1.0))
+        time.sleep(random.uniform(1.5, 2.5))
 
         my_party_recruit_click,_ = im.find_icon_on_screen(my_party_recruit_path, screen_area=captain_window)
         random_click_mouse(my_party_recruit_click)
-        time.sleep(random.uniform(0.5,1.0))
+        time.sleep(random.uniform(20, 30))
 
         click_to_party_click,_ = im.find_icon_on_screen(click_to_party_path,screen_area=captain_window)
         random_click_mouse(click_to_party_click)
-        time.sleep(random.uniform(0.1,0.3))
+        time.sleep(random.uniform(1.0,2.5))
 
         for window in window_capture_areas_[1:]:
             clicks,_ = im.find_icon_on_screen(party_accept_path,screen_area=window)
             random_click_mouse(clicks, quick_mode=True)
+            time.sleep(random.uniform(0.4, 0.8))
+
+        # Allow party membership and the captain's panel to refresh after all
+        # clients accept the invitation.
+        time.sleep(random.uniform(2.0, 3.0))
         
         party_panel_close_click,_ = im.find_icon_on_screen(party_panel_close_path,screen_area=captain_window)
         random_click_mouse(party_panel_close_click)
-        time.sleep(random.uniform(0.1,0.3))
+        time.sleep(random.uniform(1.0, 1.5))
+        print("clicked party_panel_close")
 
-        party_recruit_close_click,_ = im.find_icon_on_screen(party_recruit_close_path,screen_area=captain_window)
-        random_click_mouse(party_recruit_close_click)
-        time.sleep(random.uniform(0.1,0.3))
+        party_recruit_close_1_click,_ = im.find_icon_on_screen(party_recruit_close_1_path,screen_area=captain_window)
+        random_click_mouse(party_recruit_close_1_click)
+        time.sleep(random.uniform(0.8, 1.2))
+
+        party_recruit_close_1_click,_ = im.find_icon_on_screen(party_recruit_close_1_path,screen_area=captain_window)
+        random_click_mouse(party_recruit_close_1_click)
+        time.sleep(random.uniform(0.8, 1.2))
 
         recruit_hall_close_click,_ = im.find_icon_on_screen(recruit_hall_close_path,screen_area=captain_window)
         random_click_mouse(recruit_hall_close_click)
-        time.sleep(random.uniform(0.1,0.3))
+        time.sleep(random.uniform(1.0, 2.0))
 
         # party_panel_close_click,_ = im.find_icon_on_screen(party_panel_close_path,screen_area=captain_window)
         # random_click_mouse(party_panel_close_click)
@@ -459,6 +521,16 @@ class perform_wenqu(state):
 class perform_qiyuan(state):
 
     def execute(self):
+        beijing_now = datetime.now(timezone(timedelta(hours=8)))
+        if beijing_now.time() < datetime_time(11, 0):
+            resume_at = beijing_now.replace(hour=11, minute=1, second=0, microsecond=0)
+            wait_seconds = (resume_at - beijing_now).total_seconds()
+            logger.info(
+                f"Qiyuan is scheduled after 11:00 Beijing time; "
+                f"sleeping until {resume_at:%Y-%m-%d %H:%M:%S} CST."
+            )
+            time.sleep(wait_seconds)
+
         ROUND_PAT = re.compile(r"[（(【\[]\s*\d+\s*/\s*\d+\s*[】\])）\]]|\b\d+\s*/\s*\d+\b")
         CN_SPACE_PAT = re.compile(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])")
         PUNCT_SPACE_PAT = re.compile(r"[\s：:，,。．.!！?？;；、'\"“”‘’()（）【】\[\]《》<>·…-]+")
@@ -552,7 +624,7 @@ class perform_qiyuan(state):
                     out.extend(r)
             return out
 
-        def try_click_any(images, screen_area):
+        def try_click_any(images, screen_area, excluded_areas=None):
             for path in images:
                 img_path = os.path.normpath(path)
                 if not os.path.exists(img_path):
@@ -560,8 +632,8 @@ class perform_qiyuan(state):
                 res, score = im.find_icon_on_screen(img_path, screen_area=screen_area)
                 if res:
                     logger.info(f"Qiyuan matched {img_path} with score={score}")
-                    random_click_mouse(res)
-                    return True
+                    if random_click_mouse(res, excluded_areas=excluded_areas):
+                        return True
             return False
 
         ocr = None
@@ -578,7 +650,7 @@ class perform_qiyuan(state):
         
         qiyuan_completion = [False] * len(window_capture_areas_)
         x,y,x1,y1 = qiyuan_area_
-        excluded_areas = [(300,240,330,260), (420,240,450,260), (540,240,570,260)]
+        excluded_areas = [(280,220,350,280), (400,220,470,280), (520,220,590,280)]
         while not all(qiyuan_completion):
             check_progresses,_ = im.find_icon_each_window(qiyuan_complete_check_path, threshold=0.9)
 
@@ -586,6 +658,11 @@ class perform_qiyuan(state):
                 if area != None:
                     clicked = False
                     window = window_capture_areas_[i]
+                    ax, ay, _, _ = window
+                    window_excluded_areas = [
+                        (ax + ex_left, ay + ex_top, ax + ex_right, ay + ex_bottom)
+                        for ex_left, ex_top, ex_right, ex_bottom in excluded_areas
+                    ]
 
                     if ocr is not None and qiyuan_questions:
                         wx, wy, ww, wh = window
@@ -599,15 +676,21 @@ class perform_qiyuan(state):
                             if matched_question:
                                 entry = qiyuan_questions.get(matched_question, {})
                                 images = get_image_list(entry)
-                                clicked = try_click_any(images, screen_area=window)
+                                clicked = try_click_any(
+                                    images,
+                                    screen_area=window,
+                                    excluded_areas=window_excluded_areas,
+                                )
                             else:
                                 logger.info(f"Qiyuan unknown question in window {i}, fallback to random click.")
                         else:
                             logger.info(f"Qiyuan question OCR failed in window {i}, fallback to random click.")
 
                     if not clicked:
-                        ax, ay, _, _ = window
-                        random_click_mouse((ax+x, ay+y, ax+x1, ay+y1), excluded_areas=excluded_areas)
+                        random_click_mouse(
+                            (ax+x, ay+y, ax+x1, ay+y1),
+                            excluded_areas=window_excluded_areas,
+                        )
                 else:
                     qiyuan_completion[i] = True
     
@@ -632,14 +715,24 @@ class perform_qiyuan(state):
 class perform_keju(state):
 
     def execute(self):
+        beijing_now = datetime.now(timezone(timedelta(hours=8)))
+        if beijing_now.time() < datetime_time(17, 0):
+            resume_at = beijing_now.replace(hour=17, minute=1, second=0, microsecond=0)
+            wait_seconds = (resume_at - beijing_now).total_seconds()
+            logger.info(
+                f"Keju is scheduled after 17:00 Beijing time; "
+                f"sleeping until {resume_at:%Y-%m-%d %H:%M:%S} CST."
+            )
+            time.sleep(wait_seconds)
+
         go_to_quest(keju_xiangshi_path,mask_path=mask_path_, threshold=0.85)
         
-        answer_areas = [(230,245,390,285), (410,245,565,285), (230,300,390,340), (410,300,565,340)]
+        answer_areas = [(230,245,390,285), (410,245,565,285)] #, (230,300,390,340), (410,300,565,340)
 
         for i in range(10):
 
             for window in window_capture_areas_:
-                random_index = random.randint(0,3)
+                random_index = random.randint(0,1)
                 picked_area = answer_areas[random_index]
                 x, y, x1, y1 = picked_area
 
@@ -662,24 +755,3 @@ class perform_keju(state):
             random_click_mouse(click)
         time.sleep(3)   
 
-@register_state
-class perform_menghuan_lottery(state):
-
-    def execute(self):
-        fuli_clicks, vals = im.find_icon_each_window(game_promotion_path, threshold=0.9)
-        for click, val in zip(fuli_clicks, vals):
-            logger.info(f"fuli at {click} with val: {val}")
-            random_click_mouse(click)
-        
-        open_lottery_clicks, vals = im.find_icon_each_window(open_lottery_path, threshold=0.9)
-        for click, val in zip(open_lottery_clicks, vals):
-            logger.info(f"open_lottery at {click} with val: {val}")
-            random_click_mouse(click)       
-
-        menghuan_lottery_areas, vals = im.find_icon_each_window(menghuan_lottery_path)
-        for area, val in zip(menghuan_lottery_areas, vals):
-            logger.info(f"menghuan_lottery at {area} with val: {val}")
-            scratch_horizontally(area)    
-
-
-        

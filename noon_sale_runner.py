@@ -28,7 +28,7 @@ TARGET_ITEM_TEMPLATE_PATHS = [
     "img_templates/fabao_7.png",
 ]
 
-STEP1_OFFSET_MS = 1000
+STEP1_OFFSET_MS = 1700
 STEP2_DELAY_MS = 300
 STEP2_POST_CLICK_DELAY_MS = 150
 BUY_SPAM_CLICKS = 30
@@ -124,17 +124,13 @@ def click_template(
 
 
 def click_point(x: int, y: int, label: str) -> None:
-    params = bm._get_mode_params()
-    bm._inject_at_screen(x, y, "left", params)
-    bm.broadcast_click(x, y, "left", reason=label)
+    bm.click_master_and_children(x, y, "left")
     print(f"[CLICK] {label} at ({x},{y})")
 
 
 def spam_click_point(x: int, y: int, label: str, count: int) -> None:
-    params = bm._get_mode_params()
     for _ in range(count):
-        bm._inject_at_screen(x, y, "left", params)
-        bm.broadcast_click(x, y, "left", reason=label)
+        bm.click_master_and_children(x, y, "left")
         time.sleep(random.uniform(0.01, 0.05))
     print(f"[SPAM] {label} x{count} at ({x},{y})")
 

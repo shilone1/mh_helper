@@ -131,6 +131,7 @@ icon_tasks = [
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_sell"), "key": "sell", "threshold": 0.80},
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_discard"), "key": "discard", "threshold": 0.80},
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_stash"), "key": "stash", "threshold": 0.80},
+              {"folder": resource_path("img_templates", "inventory_clean", "items_to_medicine"), "key": "medicine", "threshold": 0.80},
              ]
 
 def go_to_market():
@@ -189,7 +190,7 @@ def sell_items(bbox_list):
 
         window_idx = get_window_area(bbox[0], bbox[1])
 
-        result, val = im.find_icon_on_screen(auction_sell_path, screen_area=window_capture_areas_[window_idx], threshold=0.90)
+        result, val = im.find_icon_on_screen(auction_sell_path, screen_area=window_capture_areas_[window_idx], threshold=0.80)
         logger.info(f"found auction_sell at {result} with {val}")
         random_click_mouse(result)
         time.sleep(random.uniform(0.5,1.5))
@@ -222,7 +223,7 @@ def discard_items(bbox_list):
         random_click_mouse(result)
         time.sleep(random.uniform(0.5,1.5))
 
-        result,val = im.find_icon_on_screen(discard_confirm_path, screen_area=window_capture_areas_[window_idx], threshold=0.90)
+        result,val = im.find_icon_on_screen(discard_confirm_path, screen_area=window_capture_areas_[window_idx], threshold=0.80)
         logger.info(f"found discard_confirm_path at {result} with {val}")
         random_click_mouse(result)
         time.sleep(random.uniform(0.5,1.5))
@@ -237,21 +238,39 @@ def stash_items(bbox_list):
     for bbox in bbox_list:
         random_click_mouse(bbox, double_click=True)
 
+def use_medicine(bbox_list):
+    results, val = im.find_icon_each_window(inventory_unselected_path, threshold=0.98)
+    logger.info(f"unselected inventories are at {results} with val: {val}") 
+    for result in results:
+        if result:
+            random_click_mouse(result)
+
+    for bbox in bbox_list:
+        random_click_mouse(bbox)   
+        time.sleep(random.uniform(0.5,1.5))
+
+        window_idx = get_window_area(bbox[0], bbox[1])
+        result, val = im.find_icon_on_screen(item_option_more_path, screen_area=window_capture_areas_[window_idx], threshold=0.90)
+        logger.info(f"found item_option_more at {result} with {val}")
+        random_click_mouse(result)
+        time.sleep(random.uniform(0.5,1.5))
+
+        result,val = im.find_icon_on_screen(item_vast_use_path, screen_area=window_capture_areas_[window_idx], threshold=0.80)
+        logger.info(f"found item_vast_use_path at {result} with {val}")
+        random_click_mouse(result)
+        time.sleep(random.uniform(0.5,1.5))
+
+        result,val = im.find_icon_on_screen(item_use_confirm_path, screen_area=window_capture_areas_[window_idx], threshold=0.80)
+        logger.info(f"found item_use_confirm_path at {result} with {val}")
+        random_click_mouse(result)
+        time.sleep(random.uniform(0.5,1.5))
+
 action_map = {
     "sell": sell_items,
     "discard": discard_items,
     "stash": stash_items,
+    "medicine": use_medicine,
 }
-
-def reset_inventory_to_top(window_capture_areas, drag_area):
-    for window_idx, window in enumerate(window_capture_areas):
-        reset_drags = random.randint(4, 6)
-        logger.info(f"Resetting inventory window {window_idx} toward top: {reset_drags} drags")
-        for drag_idx in range(reset_drags):
-            logger.info(f"Reset drag {drag_idx + 1}/{reset_drags} for window {window_idx}")
-            drag_inventory(window, direction="up", drag_area=drag_area)
-            time.sleep(random.uniform(0.15, 0.35))
-
 
 def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area, action_map, max_scrolls=5):
     # inventory_clicks, vals = im.find_icon_each_window(inventory_path, threshold=0.85)

@@ -1,0 +1,173 @@
+{
+  "before": {
+    "item_name": "夜光珠",
+    "level": null,
+    "current_price": 1120,
+    "price_area": [
+      425,
+      320,
+      484,
+      349
+    ],
+    "minus_area": [
+      376,
+      327,
+      392,
+      343
+    ],
+    "plus_area": [
+      510,
+      327,
+      526,
+      343
+    ],
+    "target_confidence": 0.8510511517524719,
+    "target_reliable": true,
+    "listings": [
+      {
+        "index": 0,
+        "box": [
+          114,
+          161,
+          157,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9758563041687012,
+        "matches_target": true
+      },
+      {
+        "index": 1,
+        "box": [
+          112,
+          222,
+          159,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9122127890586853,
+        "matches_target": true
+      },
+      {
+        "index": 2,
+        "box": [
+          112,
+          282,
+          159,
+          47
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9625675678253174,
+        "matches_target": true
+      },
+      {
+        "index": 3,
+        "box": [
+          112,
+          344,
+          159,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.935513973236084,
+        "matches_target": true
+      }
+    ],
+    "reference_price": 800,
+    "matched_listing_index": 0
+  },
+  "after": {
+    "item_name": "夜光珠",
+    "level": null,
+    "current_price": 800,
+    "price_area": [
+      425,
+      320,
+      484,
+      349
+    ],
+    "minus_area": [
+      376,
+      327,
+      392,
+      343
+    ],
+    "plus_area": [
+      510,
+      327,
+      526,
+      343
+    ],
+    "target_confidence": 0.9298411011695862,
+    "target_reliable": true,
+    "listings": [
+      {
+        "index": 0,
+        "box": [
+          114,
+          161,
+          157,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9758563041687012,
+        "matches_target": true
+      },
+      {
+        "index": 1,
+        "box": [
+          112,
+          222,
+          159,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9122127890586853,
+        "matches_target": true
+      },
+      {
+        "index": 2,
+        "box": [
+          112,
+          282,
+          159,
+          47
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.9625675678253174,
+        "matches_target": true
+      },
+      {
+        "index": 3,
+        "box": [
+          112,
+          344,
+          159,
+          46
+        ],
+        "item_name": "夜光珠",
+        "level": null,
+        "price": 800,
+        "confidence": 0.935513973236084,
+        "matches_target": true
+      }
+    ],
+    "reference_price": 800,
+    "matched_listing_index": 0
+  },
+  "adjusted": true
+}

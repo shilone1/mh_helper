@@ -132,6 +132,7 @@ icon_tasks = [
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_discard"), "key": "discard", "threshold": 0.80},
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_stash"), "key": "stash", "threshold": 0.80},
               {"folder": resource_path("img_templates", "inventory_clean", "items_to_medicine"), "key": "medicine", "threshold": 0.80},
+              {"folder": resource_path("img_templates", "inventory_clean", "items_to_doubleclick"), "key": "double_click", "threshold": 0.80},
              ]
 
 def go_to_market():
@@ -265,11 +266,39 @@ def use_medicine(bbox_list):
         random_click_mouse(result)
         time.sleep(random.uniform(0.5,1.5))
 
+def double_click_items(bbox_list):
+    results, val = im.find_icon_each_window(inventory_unselected_path, threshold=0.98)
+    logger.info(f"unselected inventories are at {results} with val: {val}")
+    for result in results:
+        if result:
+            random_click_mouse(result)
+
+    for bbox in bbox_list:
+        window_idx = get_window_area(bbox[0], bbox[1])
+        if window_idx is None:
+            logger.warning(f"Cannot find window for double_click item at {bbox}")
+            continue
+
+        random_click_mouse(bbox, double_click=True)
+        time.sleep(0.3)
+
+        result, val = im.find_icon_on_screen(
+            resource_path("img_templates", "ovveride.png"),
+            screen_area=window_capture_areas_[window_idx],
+            threshold=0.80,
+        )
+        logger.info(f"found ovveride at {result} with {val}")
+        if result:
+            random_click_mouse(result)
+            time.sleep(0.3)
+
+
 action_map = {
     "sell": sell_items,
     "discard": discard_items,
     "stash": stash_items,
     "medicine": use_medicine,
+    "double_click": double_click_items,
 }
 
 def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area, action_map, max_scrolls=5):
@@ -339,9 +368,14 @@ def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area
 
     print("Finished inventory scanning.")
 
-inventory_clicks,_ = im.find_icon_each_window(inventory_path, threshold=0.85)
-for click in inventory_clicks:
-    random_click_mouse(click)
+def arrange_inventory():
+    inventory_clicks, _ = im.find_icon_each_window(inventory_path, threshold=0.85)
+    for click in inventory_clicks:
+        random_click_mouse(click)
 
-process_inventory_with_scrolling(icon_tasks,right_half_areas_, inventory_area_, action_map)
+    process_inventory_with_scrolling(icon_tasks, right_half_areas_, inventory_area_, action_map)
+
+
+if __name__ == "__main__":
+    arrange_inventory()
 

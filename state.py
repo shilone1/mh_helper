@@ -180,6 +180,34 @@ class perform_shimen(state):
 @register_state
 class perform_baotu(state):
 
+    def _restart_quest(self, window_index):
+        window = window_capture_areas_[window_index]
+        # The final trace click returns before the game closes its dialog.
+        time.sleep(2)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            activity, _ = im.find_icon_on_screen(
+                activity_panel_path, screen_area=window, threshold=0.85
+            )
+            if activity is not None:
+                break
+            time.sleep(0.5)
+        else:
+            logger.warning(f"Window {window_index}: activity panel not ready; will retry Baotu")
+            return False
+
+        go_to_quest(baotu_path, mask_path=mask_path_, screen_area=[window], threshold=0.85)
+        # Navigation may take time; never reuse coordinates from before tracing.
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            menu, _ = im.find_icon_on_screen(selection_menu_path, screen_area=window)
+            if menu is not None:
+                random_click_mouse(calculate_selection_menu_displace(menu[0], menu[1]))
+                return run_full_trace_procedure(window) is not False
+            time.sleep(0.5)
+        logger.warning(f"Window {window_index}: Baotu selection menu not found; will retry")
+        return False
+
     def execute(self):
         go_to_quest(baotu_path, mask_path=mask_path_, threshold=0.85)
         time.sleep(3)
@@ -187,13 +215,26 @@ class perform_baotu(state):
         selection_clicks = click_selection_menu(expected_num=len(window_capture_areas_),
                                                 previous_task=baotu_path,
                                                 auto_recovery=True)
-        for click in selection_clicks:
+        for window_index, click in enumerate(selection_clicks):
+            if click is None:
+                continue
             random_click_mouse(click)
+            trace_result = run_full_trace_procedure(window_capture_areas_[window_index])
+            if trace_result is True:
+                self._restart_quest(window_index)
+            elif trace_result is False:
+                logger.warning(
+                    f"Window {window_index} did not complete the Baotu trace procedure"
+                )
 
         time.sleep(30)
 
         # Define window states and counters
-        window_states = [{"state": "waiting", "stuck_counter": 0} for _ in range(5)]
+        window_states = [
+            {"state": "waiting", "stuck_counter": 0, "started": False,
+             "missing_checks": 0, "restart_attempts": 0}
+            for _ in window_capture_areas_
+        ]
         baotu_completion_checks = [{"template_path": baotu_clicks_path, "filter_range": YELLOW_COLOR_RANGE},
                                    {"template_path": auto_battle_path, "filter_range": None},
                                    {"template_path": shimen_completed_2_path, "filter_range": None}]
@@ -204,7 +245,7 @@ class perform_baotu(state):
                     logger.info(f"Window {i} is already completed.")
                     continue
 
-                # If both completion checks are None, mark window as completed and skip other checks
+                # Missing icons alone do not prove that the quest ever started.
                 check_completion, vals = im.find_multiple_icons_on_screen(baotu_completion_checks, screen_area=window, threshold=0.68)
                 logger.info(f"Window {i} baotu checks: {check_completion} with {vals}")
 
@@ -214,9 +255,25 @@ class perform_baotu(state):
                     random_click_mouse(check_completion[2])
 
                 if check_completion[0] is None and check_completion[1] is None:
+                    if not window_states[i]["started"] and not check_completion[2]:
+                        if window_states[i]["restart_attempts"] >= 3:
+                            raise RuntimeError(
+                                f"Window {i}: Baotu never started after 3 recovery attempts"
+                            )
+                        window_states[i]["restart_attempts"] += 1
+                        logger.warning(f"Window {i}: no Baotu progress detected; retrying quest")
+                        self._restart_quest(i)
+                        continue
+                    window_states[i]["missing_checks"] += 1
+                    if not check_completion[2] and window_states[i]["missing_checks"] < 2:
+                        logger.info(f"Window {i}: confirming Baotu completion on next check")
+                        continue
                     window_states[i]["state"] = "completed"
                     logger.info(f"Window {i} marked as completed.")
                     continue  # Skip further checks and move to the next window
+
+                window_states[i]["started"] = True
+                window_states[i]["missing_checks"] = 0
 
                 # Handle the window stuck state
                 if check_completion[0]:
@@ -251,8 +308,23 @@ class perform_mijing(state):
         selection_clicks = click_selection_menu(expected_num=len(window_capture_areas_),
                                                 previous_task=mijing_path,
                                                 auto_recovery=True)
-        for click in selection_clicks:
+        for window_index, click in enumerate(selection_clicks):
+            if click is None:
+                continue
             random_click_mouse(click)
+            trace_result = run_full_trace_procedure(window_capture_areas_[window_index])
+            if trace_result is True:
+                go_to_quest(
+                    mijing_path,
+                    mask_path=mask_path_,
+                    screen_area=[window_capture_areas_[window_index]],
+                    threshold=0.85,
+                )
+                random_click_mouse(click)
+            elif trace_result is False:
+                logger.warning(
+                    f"Window {window_index} did not complete the Mijing trace procedure"
+                )
 
         if im.find_icon_on_screen(mijing_enter_path)[0] != None:
             logger.info("Mijing found choices, selecting......")
@@ -370,7 +442,34 @@ class perform_yabiao(state):
         go_to_quest(yabiao_path,mask_path=mask_path_, threshold=0.85)
 
         time.sleep(3)
-        window_completion = [0] * 5
+
+        # Perform the initial Yabiao selection outside the completion loop.
+        # This is the pass where the optional trace prompt may appear.
+        initial_selections = click_selection_menu(expected_num=len(window_capture_areas_))
+        for window_index, selection_click in enumerate(initial_selections):
+            if selection_click is None:
+                continue
+
+            random_click_mouse(selection_click)
+            trace_result = run_full_trace_procedure(window_capture_areas_[window_index])
+            if trace_result is True:
+                go_to_quest(yabiao_path, mask_path=mask_path_, screen_area=[window_capture_areas_[window_index]], threshold=0.85)
+                random_click_mouse(selection_click)
+            elif trace_result is False:
+                logger.warning(f"Window {window_index} did not complete the Yabiao trace procedure")
+
+            yabiao_confirm, val = im.find_icon_on_screen(yabiao_confirm_path, screen_area=window_capture_areas_[window_index], threshold=0.90)
+            logger.info(
+                f"Window {window_index} Yabiao confirm at {yabiao_confirm} with value {val}"
+            )
+            if yabiao_confirm is not None:
+                random_click_mouse(yabiao_confirm)
+            else:
+                logger.warning(f"Window {window_index} initial Yabiao confirm was not found")
+
+        # The initial pass above accounts for one of the original three
+        # successes, leaving two more successful passes per window.
+        window_completion = [0] * len(window_capture_areas_)
         is_yabiao_completed = False
         while not is_yabiao_completed:
             to_completes = click_selection_menu(expected_num=0)
@@ -385,17 +484,13 @@ class perform_yabiao(state):
                 x,y,_,_ = i
                 window_idx = get_window_area(x,y)
                 window_completion[window_idx] += 1
-            
+
             logger.info("Checking Yabiao confirms.......")
             yabiao_confirms,_ = im.find_icon_each_window(yabiao_confirm_path, threshold=0.90)
             for yabiao_confirm in yabiao_confirms:
                 random_click_mouse(yabiao_confirm)
-            # for i in to_completes:
-            #     x,y,_,_ = i
-            #     window_idx = get_window_area(x,y)
-            #     window_completion[window_idx] += 1
             
-            if all(counter >= 3 for counter in window_completion):
+            if all(counter >= 2 for counter in window_completion):
                 is_yabiao_completed = True
             
             time.sleep(random.uniform(40,80))
@@ -427,7 +522,7 @@ class perform_create_party(state):
 
         my_party_recruit_click,_ = im.find_icon_on_screen(my_party_recruit_path, screen_area=captain_window)
         random_click_mouse(my_party_recruit_click)
-        time.sleep(random.uniform(20, 30))
+        time.sleep(random.uniform(2.0, 3.0))
 
         click_to_party_click,_ = im.find_icon_on_screen(click_to_party_path,screen_area=captain_window)
         random_click_mouse(click_to_party_click)
@@ -441,21 +536,29 @@ class perform_create_party(state):
         # Allow party membership and the captain's panel to refresh after all
         # clients accept the invitation.
         time.sleep(random.uniform(2.0, 3.0))
+
+        party_recruit_close_click,_ = im.find_icon_on_screen(party_recruit_close_path,screen_area=captain_window)
+        print("party_recruit_close_click: ", party_recruit_close_click)
+        random_click_mouse(party_recruit_close_click)
         
         party_panel_close_click,_ = im.find_icon_on_screen(party_panel_close_path,screen_area=captain_window)
+        print("party_panel_close_click: ", party_panel_close_click)
         random_click_mouse(party_panel_close_click)
         time.sleep(random.uniform(1.0, 1.5))
         print("clicked party_panel_close")
 
         party_recruit_close_1_click,_ = im.find_icon_on_screen(party_recruit_close_1_path,screen_area=captain_window)
+        print("party_recruit_close_1_click: ", party_recruit_close_1_click)
         random_click_mouse(party_recruit_close_1_click)
         time.sleep(random.uniform(0.8, 1.2))
 
         party_recruit_close_1_click,_ = im.find_icon_on_screen(party_recruit_close_1_path,screen_area=captain_window)
+        print("party_recruit_close_1_click2: ", party_recruit_close_1_click)
         random_click_mouse(party_recruit_close_1_click)
         time.sleep(random.uniform(0.8, 1.2))
 
         recruit_hall_close_click,_ = im.find_icon_on_screen(recruit_hall_close_path,screen_area=captain_window)
+        print("recruit_hall_close_click: ", recruit_hall_close_click)
         random_click_mouse(recruit_hall_close_click)
         time.sleep(random.uniform(1.0, 2.0))
 

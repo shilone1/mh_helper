@@ -40,6 +40,14 @@ def format_confidence(value, decimals=2):
     return round(value, decimals)
 
 def find_matches(curr_image, template, mask=None, screen_area=None, threshold=0.80):
+    if curr_image is None or template is None or curr_image.size == 0 or template.size == 0:
+        return None, None
+    image_height, image_width = curr_image.shape[:2]
+    template_height, template_width = template.shape[:2]
+    # OpenCV can swap image/template roles when the template is larger in both
+    # dimensions, producing a misleading match and an out-of-bounds click box.
+    if template_height > image_height or template_width > image_width:
+        return None, None
     # print('curr_image:', curr_image.shape, curr_image.dtype)
     # print('template:', template.shape, template.dtype)
     match_result = cv2.matchTemplate(curr_image, template, cv2.TM_CCOEFF_NORMED, mask=mask)
@@ -331,8 +339,12 @@ def find_icons_one_per_window(template_folder, windows, threshold=0.8):
     screenshot = pyautogui.screenshot()
     full_image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
-    template_files = [f for f in os.listdir(template_folder) if f.endswith(".png")]
-    templates = [(cv2.imread(os.path.join(template_folder, f), cv2.IMREAD_COLOR), f) for f in template_files]
+    template_files = [f for f in os.listdir(template_folder) if f.lower().endswith(".png")]
+    templates = [
+        (cv2.imdecode(np.fromfile(os.path.join(template_folder, f), dtype=np.uint8),
+                      cv2.IMREAD_COLOR), f)
+        for f in template_files
+    ]
 
     matches = []
 
@@ -341,6 +353,14 @@ def find_icons_one_per_window(template_folder, windows, threshold=0.8):
 
         for template, filename in templates:
             if template is None:
+                continue
+
+            if template.shape[0] > cropped.shape[0] or template.shape[1] > cropped.shape[1]:
+                logger.warning(
+                    f"Skipping oversized template {filename}: "
+                    f"{template.shape[1]}x{template.shape[0]} exceeds "
+                    f"search region {cropped.shape[1]}x{cropped.shape[0]}"
+                )
                 continue
 
             result, val = find_matches(cropped, template, screen_area=(left, top), threshold=threshold)

@@ -22,20 +22,21 @@ ensure_standard_streams()
 
 from state import STATE_REGISTRY
 from logger import logger
-from app_paths import user_data_path
+from app_paths import app_dir
 from config import SCREEN_HEIGHT, WINDOW_HEIGHT
 
-CONFIG_FILE = user_data_path("gui_config.json")
+CONFIG_FILE = os.path.join(os.path.dirname(app_dir()), "gui_config.json")
 UI_WIDTH = 420
 UI_X = 50
 UI_Y = WINDOW_HEIGHT
 UI_BOTTOM_MARGIN = 64
 UI_HEIGHT = SCREEN_HEIGHT - UI_Y - UI_BOTTOM_MARGIN
 DEFAULT_CONFIG = {
-    "elite_dungeons": 2,
-    "normal_dungeons": 3,
-    "zhuagui_rounds": 5,
-    "mijing_max_try_outs": 3,
+    "main_instance": False,
+    "elite_dungeons": 0,
+    "normal_dungeons": 0,
+    "zhuagui_rounds": 0,
+    "mijing_max_try_outs": 0,
     "selected_states": []
 }
 
@@ -48,9 +49,14 @@ def load_config():
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return config
 
+    if not isinstance(saved_config, dict):
+        return config
+
     for key in DEFAULT_CONFIG:
         if key in saved_config:
             config[key] = saved_config[key]
+    if not isinstance(config["main_instance"], bool):
+        config["main_instance"] = False
     return config
 
 
@@ -158,6 +164,45 @@ def on_close():
     save_current_ui_state()
     root.destroy()
 
+
+def run_quick_action(action):
+    """Keep automation in the console process and restore the selector afterward."""
+    save_current_ui_state()
+    root.withdraw()
+    root.update_idletasks()
+    try:
+        action()
+    except Exception as exc:
+        logger.exception("Quick action failed")
+        messagebox.showerror("Action Failed", str(exc), parent=root)
+    finally:
+        root.deiconify()
+
+
+def launch_arrange_windows():
+    from get_windows import arrange_windows
+    run_quick_action(arrange_windows)
+
+
+def launch_arrange_inventory():
+    if config.get("main_instance", False):
+        from arrange_inventory_main import arrange_inventory
+    else:
+        from arrange_inventory import arrange_inventory
+    run_quick_action(arrange_inventory)
+
+
+def launch_qiyuan_keju():
+    run_quick_action(lambda: StateMachine(["perform_qiyuan", "perform_keju"]).run())
+
+
+def launch_huoli_sell():
+    def action():
+        from huoli_utilize import huoli_sell
+        huoli_sell()
+    run_quick_action(action)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args, _unknown = parser.parse_known_args()
@@ -179,6 +224,19 @@ if __name__ == "__main__":
 
     root.geometry(f"{UI_WIDTH}x{UI_HEIGHT}+{UI_X}+{UI_Y}")
     root.minsize(UI_WIDTH, UI_HEIGHT)
+
+    quick_actions_frame = tk.Frame(root)
+    quick_actions_frame.pack(fill="x", padx=10, pady=(6, 0))
+    for column, (label, command) in enumerate([
+        ("Arrange Windows", launch_arrange_windows),
+        ("Arrange Inventory", launch_arrange_inventory),
+        ("Q&A", launch_qiyuan_keju),
+        ("huoli_sell", launch_huoli_sell),
+    ]):
+        quick_actions_frame.columnconfigure(column, weight=1)
+        tk.Button(quick_actions_frame, text=label, command=command).grid(
+            row=0, column=column, sticky="ew", padx=2
+        )
 
     tasks_frame = tk.LabelFrame(root, text="Tasks", padx=8, pady=6)
     tasks_frame.pack(fill="x", padx=10, pady=(6, 6))

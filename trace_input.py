@@ -27,6 +27,7 @@ from mouse_action import (
 
 
 TAYIN_COMPLETE_PATH = resource_path("img_templates", "tayin_complete.png")
+TAYIN_DETECT_PATH = resource_path("img_templates", "tayin_detect.png")
 
 
 def extract_dark_glyph(image_bgr, min_component_area=80):
@@ -124,17 +125,23 @@ def build_trace_paths(glyph_mask, minimum_path_pixels=8):
         visited_edges = set()
         walk = [start]
 
-        def visit(point):
-            for neighbour in neighbours(point):
-                edge = frozenset((point, neighbour))
-                if edge in visited_edges:
-                    continue
-                visited_edges.add(edge)
-                walk.append(neighbour)
-                visit(neighbour)
-                walk.append(point)
-
-        visit(start)
+        # Store DFS frames explicitly: long glyphs can exceed Python's call
+        # stack. Keep the same edge order and return steps as recursive DFS.
+        frames = [(start, iter(neighbours(start)))]
+        while frames:
+            point, remaining = frames[-1]
+            neighbour = next(remaining, None)
+            if neighbour is None:
+                frames.pop()
+                if frames:
+                    walk.append(frames[-1][0])
+                continue
+            edge = frozenset((point, neighbour))
+            if edge in visited_edges:
+                continue
+            visited_edges.add(edge)
+            walk.append(neighbour)
+            frames.append((neighbour, iter(neighbours(neighbour))))
         paths.append([(x, y) for y, x in walk])
 
     return sorted(paths, key=len, reverse=True)
@@ -326,6 +333,19 @@ def trace_glyphs_on_screen(point_delay=0.002):
     return completed
 
 
+def detect_trace_prompt(screen_bgr, threshold=0.8):
+    """Confirm the task using its fixed label, independently of the glyph."""
+    template = cv2.imread(TAYIN_DETECT_PATH, cv2.IMREAD_COLOR)
+    if template is None:
+        raise FileNotFoundError(f"Trace detection template missing: {TAYIN_DETECT_PATH}")
+    prompt, confidence = image_match.find_matches(
+        screen_bgr, template, threshold=threshold
+    )
+    if prompt is not None:
+        logger.info(f"Detected trace task label at {prompt}; score={confidence}")
+    return prompt is not None
+
+
 def detect_trace_areas(screen_area):
     """Check once for trace squares inside one game window.
 
@@ -335,6 +355,8 @@ def detect_trace_areas(screen_area):
     window_left, window_top, _, _ = screen_area
     screenshot = pyautogui.screenshot(region=screen_area)
     screen_bgr = cv2.cvtColor(np.asarray(screenshot), cv2.COLOR_RGB2BGR)
+    if not detect_trace_prompt(screen_bgr):
+        return screen_bgr, None
     areas = []
     for local_area in find_trace_areas(screen_bgr):
         left, top, right, bottom = local_area
@@ -372,9 +394,12 @@ def run_full_trace_procedure(screen_area, rounds=2, detection_delay=(5.0, 7.0)):
         time.sleep(delay)
 
         screen_bgr, areas = detect_trace_areas(screen_area)
-        if not areas:
+        if areas is None:
             logger.info(f"Round {round_number}: optional trace prompt did not appear; skipping")
             return None
+        if not areas:
+            logger.warning(f"Round {round_number}: trace task detected, but drawing area could not be located")
+            return False
 
         for local_area, absolute_area in areas:
             local_left, local_top, local_right, local_bottom = local_area

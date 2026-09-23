@@ -153,33 +153,20 @@ def get_window_size(hwnd):
 # game_windows = enum_windows_by_title("梦幻西游：时空")
 
 
-if __name__ == "__main__":
+def arrange_windows():
+    """Arrange the first five game windows using the configured layout."""
+    from config import SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 
-    """
-    current game window size is 653, 517
-    adjusted size 669 556
-    """
-
-    # Screen and window sizes (adjust as needed)
-    SCREEN_WIDTH = 1920  # Your screen width
-    SCREEN_HEIGHT = 1080  # Your screen height
-    WINDOW_WIDTH = 653  # Width of each game window
-    WINDOW_HEIGHT = 517  # Height of each game window
-
-    # Get predefined positions
-    positions, window_positions = get_window_positions(SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT)
-
-    # Find all game windows
+    positions, _ = get_window_positions(
+        SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+    )
     game_windows = enum_windows_by_title("梦幻西游：时空")
-    for i in game_windows:
-        print(get_window_size(i))
-
-    if len(game_windows) >= 5:
-        # Move windows to their respective positions
-        move_windows_to_positions(game_windows[:5], positions, WINDOW_WIDTH, WINDOW_HEIGHT)
-    else:
-        print(f"Found only {len(game_windows)} game windows. Make sure 5 instances are running.")
-    
-    # print("aaa", window_positions)
+    if len(game_windows) < 5:
+        raise RuntimeError(
+            f"Found only {len(game_windows)} game windows. Make sure 5 instances are running."
+        )
+    move_windows_to_positions(game_windows[:5], positions, WINDOW_WIDTH, WINDOW_HEIGHT)
 
 
+if __name__ == "__main__":
+    arrange_windows()

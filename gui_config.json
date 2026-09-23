@@ -1,9 +1,15 @@
 {
-  "elite_dungeons": 1,
-  "normal_dungeons": 3,
-  "zhuagui_rounds": 5,
-  "mijing_max_try_outs": 5,
+  "elite_dungeons": "1",
+  "normal_dungeons": "3",
+  "zhuagui_rounds": "5",
+  "mijing_max_try_outs": "5",
   "selected_states": [
+    "perform_baotu",
+    "perform_mijing",
+    "perform_yabiao",
+    "perform_create_party",
+    "perform_dungeon_normal",
+    "perform_zhuagui",
     "perform_wenqu",
     "perform_qiyuan",
     "perform_keju"

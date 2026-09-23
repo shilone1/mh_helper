@@ -7,6 +7,7 @@ import numpy as np
 import pyautogui
 from config import *
 from logger import logger
+from trace_input import run_full_trace_procedure
 
 def safe_click_each_window(template_path, click_areas, retries=3, delay=(1, 1.5), threshold=0.85):
     status_per_window = [False] * len(click_areas)
@@ -141,8 +142,10 @@ def go_to_quest(template_path, mask_path=None, screen_area=window_capture_areas_
     clicks_activity_panel, vals = im.find_icon_each_window(activity_panel_path, 
                                                            screen_area=screen_area, 
                                                            threshold=threshold)
-    
+
+    remembered_activity_clicks = []
     for click, val in zip(clicks_activity_panel, vals):
+        remembered_activity_clicks.append(click)
         logger.info(f"Found activity panels, location {click} found value: {val}")
         random_click_mouse(click)
     time.sleep(random.uniform(3, 4))
@@ -164,16 +167,32 @@ def go_to_quest(template_path, mask_path=None, screen_area=window_capture_areas_
                                             
     # logger.info(f"activities templates found at: {to_completes}")
 
-    for click, val in zip(to_completes,vals):
+    for window_index, (click, val) in enumerate(zip(to_completes, vals)):
+        if click is None:
+            continue
+
         top_left_x, top_left_y, _, _ = click
         button_left   =  top_left_x + button_relative_area_[0]
         button_top    =  top_left_y + button_relative_area_[1]
         button_right  =  top_left_x + button_relative_area_[2]
         button_bottom =  top_left_y + button_relative_area_[3]
+        target_button_area = (button_left, button_top, button_right, button_bottom)
 
         logger.info(f"Found Target activity, location {click} found value: {val}")
         # Perform the click specifically on the button
-        random_click_mouse((button_left, button_top, button_right, button_bottom))
+        random_click_mouse(target_button_area)
+
+        trace_result = run_full_trace_procedure(screen_area[window_index])
+        # if trace_result is True:
+        #     remembered_activity_click = remembered_activity_clicks[window_index]
+        #     if remembered_activity_click is not None:
+        #         random_click_mouse(remembered_activity_click)
+        #         time.sleep(random.uniform(1, 2))
+        #         random_click_mouse(target_button_area)
+        # elif trace_result is False:
+        #     logger.warning(
+        #         f"Window {window_index} did not complete the two-round trace procedure"
+        #     )
 
 
 def click_selection_menu(expected_num=1, previous_task=None, max_attempts=5, auto_recovery=False):
@@ -520,10 +539,11 @@ def perform_dungeons(elite=False, count=None):
 
             dungeon_enter_clicks = im.find_all_icons(dungeon_enter_path, screen_area=window_capture_areas_[0],threshold=0.85)
             random_click_mouse(dungeon_enter_clicks[elite_dungeon_counter])
-            time.sleep(random.uniform(1.0, 2.0))
+            time.sleep(random.uniform(2.0, 3.0))
 
             for window in window_capture_areas_[1:]:
-                elite_dungeon_ready,_ = im.find_icon_on_screen(elite_dungeon_ready_path, screen_area=window)
+                elite_dungeon_ready,_ = im.find_icon_on_screen(elite_dungeon_ready_path, screen_area=window, threshold=0.60)
+                print("Elite dungeon ready: ", elite_dungeon_ready)
                 random_click_mouse(elite_dungeon_ready)
                 time.sleep(random.uniform(0.1,0.3))
 
@@ -537,6 +557,7 @@ def perform_dungeons(elite=False, count=None):
         dungeon_enter_clicks = im.find_all_icons(dungeon_enter_path, screen_area=window_capture_areas_[0],threshold=0.85)
         random_click_mouse(dungeon_enter_clicks[dungeon_counter])
         dungeon_counter += 1
+        print("Dungeon counter: ", dungeon_counter)
         time.sleep(random.uniform(5,10))
         dungeon_process()
 
@@ -582,8 +603,8 @@ def perform_zhuagui(rounds=5):
         logger.info("New round of zhuagui begins..........")
         selection_menu_click = click_selection_menu()
         random_click_mouse(*selection_menu_click)
-        time.sleep(3)
-        zhuagui_proceed_click, val = im.find_filtered_icons(zhuagui_proceed_path, screen_area=window_capture_areas_[0])
+        time.sleep(random.uniform(10,15))
+        zhuagui_proceed_click, val = im.find_filtered_icons(zhuagui_proceed_path, screen_area=window_capture_areas_[0], threshold=0.70)
         logger.info(f"zhuagui_proceed at {zhuagui_proceed_click} with val: {val}")
         random_click_mouse(zhuagui_proceed_click, double_click=True)  
         # random_click_mouse((500, 185, 626, 231),double_click=True)

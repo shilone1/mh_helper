@@ -8,8 +8,8 @@ from config import *
 from helpers import * 
 from logger import logger
 
-zhuagui_rounds = 20
-windows = [window_capture_areas_[1], window_capture_areas_[2], window_capture_areas_[4]]
+zhuagui_rounds = 10
+windows = [window_capture_areas_[1], window_capture_areas_[2], window_capture_areas_[3]]
 zhuagui_counters = [0] * len(windows)
 print(windows)
 while any(counter < zhuagui_rounds for counter in zhuagui_counters):

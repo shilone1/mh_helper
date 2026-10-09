@@ -212,74 +212,80 @@ def click_mouse():
     mi_up = MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=MOUSEEVENTF_LEFTUP, time=0, dwExtraInfo=None)
     send_input(mi_up)
 
-def scratch_horizontally(area, base_duration=1.2, row_step=6):
+def scratch_horizontally(area, base_duration=1.2, row_step=6,
+                         completion_check=None, overshoot_chance=0.3):
+    """Scratch slightly angled rows, optionally stopping on confirmed completion.
+
+    completion_check is called with no arguments before scratching and after
+    each released stroke. It must report a positive game completion signal,
+    not merely a failed match against the unscratched coating. Return True
+    only when completion is confirmed; exhausting the rows returns False.
+    A full pass is the hard stop regardless of the visual check result.
     """
-    Simulate a realistic scratch card gesture:
-    - Covers the entire area with horizontal strokes
-    - Random row traversal order
-    - Variable speed per row
-    - Optional out-of-bound extension on some strokes
-    """
-    left, top, right, bottom = area
-    height = bottom - top
-    width = right - left
+    left, top, right, bottom = map(int, area)
+    if right <= left or bottom <= top or row_step <= 0 or base_duration <= 0:
+        raise ValueError("Scratch area, row_step and duration must be positive")
+    if not 0 <= overshoot_chance <= 1:
+        raise ValueError("overshoot_chance must be between 0 and 1")
 
     rows = list(range(top, bottom, row_step))
+    ordered_rows = []
+    while rows:
+        cluster_size = random.randint(1, 4)
+        cluster, rows = rows[:cluster_size], rows[cluster_size:]
+        if random.random() < 0.5:
+            cluster.reverse()
+        insert_pos = random.randint(0, len(ordered_rows))
+        ordered_rows[insert_pos:insert_pos] = cluster
 
-    def generate_random_order(rows):
-        """
-        Shuffle rows with random-length clusters and insertion order,
-        to simulate human scratch behavior.
-        """
-        ordered = []
-        remaining = rows.copy()
+    def clamp_point(x, y):
+        return (min(max(int(x), 0), SCREEN_WIDTH - 1),
+                min(max(int(y), 0), SCREEN_HEIGHT - 1))
 
-        while remaining:
-            cluster_size = random.randint(1, 4)
-            cluster = remaining[:cluster_size]
-            remaining = remaining[cluster_size:]
+    if completion_check is not None and completion_check():
+        return True
 
-            if random.random() < 0.5:
-                cluster.reverse()
-
-            insert_pos = random.randint(0, len(ordered))
-            ordered[insert_pos:insert_pos] = cluster
-
-        return ordered
-
-    ordered_rows = generate_random_order(rows)
-
+    reverse = random.random() < 0.5
     for y in ordered_rows:
-        # Variable speed per row
-        speed_multiplier = random.uniform(0.7, 1.5)
-        row_duration = base_duration * speed_multiplier / (height / row_step)
+        row_duration = base_duration * random.uniform(0.7, 1.5) / len(ordered_rows)
+        # Extend beyond either edge independently on some strokes.
+        start_x = left - random.randint(5, 15) if random.random() < overshoot_chance else left
+        end_x = right + random.randint(5, 15) if random.random() < overshoot_chance else right - 1
+        # Keep the slope small relative to row spacing to avoid large gaps.
+        tilt = random.uniform(-row_step / 2, row_step / 2)
+        center_y = y + random.uniform(-1, 1)
+        start_x, start_y = clamp_point(start_x, center_y - tilt / 2)
+        end_x, end_y = clamp_point(end_x, center_y + tilt / 2)
+        if reverse:
+            start_x, end_x = end_x, start_x
+            start_y, end_y = end_y, start_y
+        reverse = not reverse
 
-        # Some strokes go slightly out of bounds
-        out_left = random.random() < 0.3
-        out_right = random.random() < 0.3
+        move_mouse_smooth(start_x, start_y)
+        current_x, current_y = start_x, start_y
+        try:
+            hold_left_mouse_button(start_x, start_y)
+            steps = max(5, int(abs(end_x - start_x) / 10))
+            for i in range(1, steps + 1):
+                fraction = i / steps
+                jitter = random.uniform(-1, 1) if i < steps else 0
+                current_x, current_y = clamp_point(
+                    start_x + (end_x - start_x) * fraction,
+                    start_y + (end_y - start_y) * fraction + jitter)
+                norm_x, norm_y = normalize_coordinates(current_x, current_y)
+                move = MOUSEINPUT(dx=norm_x, dy=norm_y, mouseData=0,
+                                 dwFlags=MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+                                 time=0, dwExtraInfo=None)
+                send_input(move)
+                time.sleep(row_duration / steps)
+        finally:
+            release_left_mouse_button(current_x, current_y)
+        time.sleep(random.uniform(0.01, 0.05))
+        if completion_check is not None and completion_check():
+            logger.info("Lottery completion confirmed; stopping scratch strokes")
+            return True
 
-        start_x = left - random.randint(5, 15) if out_left else left + random.randint(0, 5)
-        end_x   = right + random.randint(5, 15) if out_right else right - random.randint(0, 5)
-
-        # Small jitter in vertical position
-        jittered_y = y + random.randint(-1, 1)
-
-        move_mouse_smooth(start_x, jittered_y)
-        hold_left_mouse_button(start_x, jittered_y)
-
-        steps = max(5, int(abs(end_x - start_x) / 10))
-        for i in range(steps):
-            x = int(start_x + (end_x - start_x) * i / steps)
-            j_y = jittered_y + random.randint(-1, 1)
-            norm_x, norm_y = normalize_coordinates(x, j_y)
-            move = MOUSEINPUT(dx=norm_x, dy=norm_y, mouseData=0,
-                              dwFlags=MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
-                              time=0, dwExtraInfo=None)
-            send_input(move)
-            time.sleep(row_duration / steps)
-
-        release_left_mouse_button(end_x, jittered_y)
-        time.sleep(random.uniform(0.01, 0.05))  # Rest between strokes
+    return False
 
 # Function to click on an icon found using template matching
 

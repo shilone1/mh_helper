@@ -35,7 +35,7 @@ def _crop(image_bgr, rect):
     return image_bgr[y0:y1, x0:x1]
 
 
-def _read_text(ocr, image_bgr, rect, scale=4):
+def _read_text(ocr, image_bgr, rect, scale=4, contrast=False):
     """OCR a tight field and return its joined text and weakest confidence."""
     if rect is None:
         return "", 0.0
@@ -43,6 +43,9 @@ def _read_text(ocr, image_bgr, rect, scale=4):
     if field.size == 0:
         return "", 0.0
     field = cv2.resize(field, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if contrast:
+        gray = cv2.cvtColor(field, cv2.COLOR_BGR2GRAY)
+        field = cv2.cvtColor(cv2.createCLAHE(2.0, (4, 4)).apply(gray), cv2.COLOR_GRAY2BGR)
     result = ocr.ocr(field, cls=False)
     entries = result[0] if result and result[0] else []
     if not entries:
@@ -128,7 +131,8 @@ def _find_listing_boxes(image_bgr):
     )
 
 
-def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70):
+def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70,
+                           ocr_scale=4, ocr_contrast=False):
     """Read the target item and use only the top complete market listing.
 
     The top listing is compared by numeric level when the target has one.
@@ -140,6 +144,9 @@ def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70):
     if ocr is None:
         ocr = _make_ocr()
 
+    def read_text(ocr, image, rect):
+        return _read_text(ocr, image, rect, scale=ocr_scale, contrast=ocr_contrast)
+
     listing_boxes = sorted(_find_listing_boxes(image_bgr), key=lambda box: box[1])
     translation = (0, 0)
     if listing_boxes:
@@ -149,14 +156,14 @@ def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70):
             listing_boxes[0][1] - int(round(127 * scale)),
         )
 
-    target_name, target_name_conf = _read_text(
+    target_name, target_name_conf = read_text(
         ocr, image_bgr, _scaled_rect(image_bgr, (380, 75, 465, 103), translation)
     )
-    target_level_text, target_level_conf = _read_text(
+    target_level_text, target_level_conf = read_text(
         ocr, image_bgr, _scaled_rect(image_bgr, (380, 96, 470, 123), translation)
     )
     target_price_area = _target_price_area(image_bgr)
-    target_price_text, target_price_conf = _read_text(ocr, image_bgr, target_price_area)
+    target_price_text, target_price_conf = read_text(ocr, image_bgr, target_price_area)
     target_level = _number(target_level_text)
     compare_level = target_level is not None
     current_price = _number(target_price_text)
@@ -176,9 +183,9 @@ def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70):
         price_rect = _coin_price_area(
             image_bgr, (x, y, x + width, y + height), x + width - 2
         )
-        name, name_conf = _read_text(ocr, image_bgr, name_rect)
-        level_text, level_conf = _read_text(ocr, image_bgr, level_rect)
-        price_text, price_conf = _read_text(ocr, image_bgr, price_rect)
+        name, name_conf = read_text(ocr, image_bgr, name_rect)
+        level_text, level_conf = read_text(ocr, image_bgr, level_rect)
+        price_text, price_conf = read_text(ocr, image_bgr, price_rect)
         level, price = _number(level_text), _number(price_text)
         reliable = (
             price_conf >= minimum_confidence
@@ -219,6 +226,10 @@ def analyze_baitan_pricing(image_bgr, ocr=None, minimum_confidence=0.70):
             if compare_level else target_price_conf
         ),
         "target_reliable": target_reliable,
+        "target_level_confidence": target_level_conf,
+        "target_price_confidence": target_price_conf,
+        "target_level_text": target_level_text,
+        "target_price_text": target_price_text,
         "listings": listings,
         "reference_price": reference["price"] if reference else None,
         "matched_listing_index": reference["index"] if reference else None,

@@ -1,0 +1,508 @@
+{
+  "item_name": "临时符",
+  "level": 70,
+  "current_price": 705,
+  "price_area": [
+    420,
+    325,
+    496,
+    346
+  ],
+  "target_confidence": 0.8301002383232117,
+  "target_reliable": true,
+  "target_level_confidence": 0.8301002383232117,
+  "target_price_confidence": 0.9976160526275635,
+  "target_level_text": "等级：70",
+  "target_price_text": "705",
+  "listings": [
+    {
+      "index": 0,
+      "box": [
+        114,
+        162,
+        157,
+        45
+      ],
+      "item_name": "临时符",
+      "level": 70,
+      "price": null,
+      "price_area": [
+        181,
+        185,
+        269,
+        206
+      ],
+      "confidence": 0.9901424646377563,
+      "matches_target": false
+    },
+    {
+      "index": 1,
+      "box": [
+        112,
+        223,
+        159,
+        45
+      ],
+      "item_name": "临时符",
+      "level": 69,
+      "price": 235,
+      "price_area": [
+        181,
+        246,
+        269,
+        267
+      ],
+      "confidence": 0.9167797565460205,
+      "matches_target": false
+    },
+    {
+      "index": 2,
+      "box": [
+        112,
+        282,
+        159,
+        47
+      ],
+      "item_name": "临时符",
+      "level": 69,
+      "price": 235,
+      "price_area": [
+        181,
+        307,
+        269,
+        328
+      ],
+      "confidence": 0.9929805397987366,
+      "matches_target": false
+    },
+    {
+      "index": 3,
+      "box": [
+        112,
+        345,
+        159,
+        45
+      ],
+      "item_name": "临时符",
+      "level": 69,
+      "price": 235,
+      "price_area": [
+        181,
+        368,
+        269,
+        389
+      ],
+      "confidence": 0.9136576652526855,
+      "matches_target": false
+    }
+  ],
+  "reference_price": null,
+  "matched_listing_index": null,
+  "recovery_readings": [
+    {
+      "item_name": "临时符",
+      "level": 70,
+      "current_price": 705,
+      "price_area": [
+        420,
+        325,
+        496,
+        346
+      ],
+      "target_confidence": 0.8301002383232117,
+      "target_reliable": true,
+      "target_level_confidence": 0.8301002383232117,
+      "target_price_confidence": 0.9976160526275635,
+      "target_level_text": "等级：70",
+      "target_price_text": "705",
+      "listings": [
+        {
+          "index": 0,
+          "box": [
+            114,
+            162,
+            157,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 70,
+          "price": null,
+          "price_area": [
+            181,
+            185,
+            269,
+            206
+          ],
+          "confidence": 0.9901424646377563,
+          "matches_target": false
+        },
+        {
+          "index": 1,
+          "box": [
+            112,
+            223,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            246,
+            269,
+            267
+          ],
+          "confidence": 0.9167797565460205,
+          "matches_target": false
+        },
+        {
+          "index": 2,
+          "box": [
+            112,
+            282,
+            159,
+            47
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            307,
+            269,
+            328
+          ],
+          "confidence": 0.9929805397987366,
+          "matches_target": false
+        },
+        {
+          "index": 3,
+          "box": [
+            112,
+            345,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            368,
+            269,
+            389
+          ],
+          "confidence": 0.9136576652526855,
+          "matches_target": false
+        }
+      ],
+      "reference_price": null,
+      "matched_listing_index": null
+    },
+    {
+      "item_name": "临时符",
+      "level": 70,
+      "current_price": 705,
+      "price_area": [
+        420,
+        325,
+        496,
+        346
+      ],
+      "target_confidence": 0.8662649393081665,
+      "target_reliable": true,
+      "target_level_confidence": 0.8662649393081665,
+      "target_price_confidence": 0.9747955203056335,
+      "target_level_text": "等级：70",
+      "target_price_text": "705",
+      "listings": [
+        {
+          "index": 0,
+          "box": [
+            114,
+            162,
+            157,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 70,
+          "price": null,
+          "price_area": [
+            181,
+            185,
+            269,
+            206
+          ],
+          "confidence": 0.9943119883537292,
+          "matches_target": false
+        },
+        {
+          "index": 1,
+          "box": [
+            112,
+            223,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            246,
+            269,
+            267
+          ],
+          "confidence": 0.9526895880699158,
+          "matches_target": false
+        },
+        {
+          "index": 2,
+          "box": [
+            112,
+            282,
+            159,
+            47
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            307,
+            269,
+            328
+          ],
+          "confidence": 0.7716588973999023,
+          "matches_target": false
+        },
+        {
+          "index": 3,
+          "box": [
+            112,
+            345,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            368,
+            269,
+            389
+          ],
+          "confidence": 0.9570450782775879,
+          "matches_target": false
+        }
+      ],
+      "reference_price": null,
+      "matched_listing_index": null
+    },
+    {
+      "item_name": "临时符",
+      "level": 70,
+      "current_price": 705,
+      "price_area": [
+        420,
+        325,
+        496,
+        346
+      ],
+      "target_confidence": 0.8970033526420593,
+      "target_reliable": true,
+      "target_level_confidence": 0.9940366744995117,
+      "target_price_confidence": 0.8970033526420593,
+      "target_level_text": "等级：70",
+      "target_price_text": "705",
+      "listings": [
+        {
+          "index": 0,
+          "box": [
+            114,
+            162,
+            157,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 70,
+          "price": null,
+          "price_area": [
+            181,
+            185,
+            269,
+            206
+          ],
+          "confidence": 0.8416061401367188,
+          "matches_target": false
+        },
+        {
+          "index": 1,
+          "box": [
+            112,
+            223,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            246,
+            269,
+            267
+          ],
+          "confidence": 0.899305522441864,
+          "matches_target": false
+        },
+        {
+          "index": 2,
+          "box": [
+            112,
+            282,
+            159,
+            47
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            307,
+            269,
+            328
+          ],
+          "confidence": 0.9835052490234375,
+          "matches_target": false
+        },
+        {
+          "index": 3,
+          "box": [
+            112,
+            345,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            368,
+            269,
+            389
+          ],
+          "confidence": 0.9313509464263916,
+          "matches_target": false
+        }
+      ],
+      "reference_price": null,
+      "matched_listing_index": null
+    },
+    {
+      "item_name": "临时符",
+      "level": 70,
+      "current_price": 705,
+      "price_area": [
+        420,
+        325,
+        496,
+        346
+      ],
+      "target_confidence": 0.8369297981262207,
+      "target_reliable": true,
+      "target_level_confidence": 0.8369297981262207,
+      "target_price_confidence": 0.9879138469696045,
+      "target_level_text": "等级：70",
+      "target_price_text": "705",
+      "listings": [
+        {
+          "index": 0,
+          "box": [
+            114,
+            162,
+            157,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 70,
+          "price": null,
+          "price_area": [
+            181,
+            185,
+            269,
+            206
+          ],
+          "confidence": 0.8900402188301086,
+          "matches_target": false
+        },
+        {
+          "index": 1,
+          "box": [
+            112,
+            223,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            246,
+            269,
+            267
+          ],
+          "confidence": 0.8871419429779053,
+          "matches_target": false
+        },
+        {
+          "index": 2,
+          "box": [
+            112,
+            282,
+            159,
+            47
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            307,
+            269,
+            328
+          ],
+          "confidence": 0.8854878544807434,
+          "matches_target": false
+        },
+        {
+          "index": 3,
+          "box": [
+            112,
+            345,
+            159,
+            45
+          ],
+          "item_name": "临时符",
+          "level": 69,
+          "price": 235,
+          "price_area": [
+            181,
+            368,
+            269,
+            389
+          ],
+          "confidence": 0.9718706607818604,
+          "matches_target": false
+        }
+      ],
+      "reference_price": null,
+      "matched_listing_index": null
+    }
+  ],
+  "recovery_accepted": false
+}

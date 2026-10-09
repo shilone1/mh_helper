@@ -217,24 +217,83 @@ def _move_held(x, y):
     ))
 
 
-def input_trace_paths(paths, origin, point_delay=0.002):
+def humanize_trace_path(path, bounds=None, mistake_chance=0.25, rng=None):
+    """Add smooth hand drift and occasional slips, measured in local pixels.
+
+    Bounds are the drawing area's (width, height), not the glyph mask: small
+    excursions beyond the ink are intentional. An injected RNG allows replay.
+    """
+    if not path:
+        return []
+    rng = rng if rng is not None else random
+    points = np.asarray(path, dtype=float)
+    distances = np.concatenate(([0.0], np.cumsum(
+        np.linalg.norm(np.diff(points, axis=0), axis=1))))
+    length = distances[-1]
+    spacing = rng.uniform(12.0, 25.0)
+    anchors = np.arange(0.0, length + spacing, spacing)
+    if len(anchors) < 2:
+        anchors = np.array([0.0, spacing])
+    amplitude = rng.uniform(0.8, 2.0)
+    offsets = np.array([(rng.uniform(-amplitude, amplitude),
+                         rng.uniform(-amplitude, amplitude)) for _ in anchors])
+    indices = np.minimum(np.searchsorted(anchors, distances, side='right') - 1,
+                         len(anchors) - 2)
+    blend = (distances - anchors[indices]) / spacing
+    blend = (blend * blend * (3.0 - 2.0 * blend))[:, None]
+    points += offsets[indices] * (1.0 - blend) + offsets[indices + 1] * blend
+    if length > 12 and rng.random() < mistake_chance:
+        center = rng.uniform(0.2, 0.85) * length
+        radius = rng.uniform(4.0, 9.0)
+        index = int(np.searchsorted(distances, center))
+        before = np.asarray(path[max(0, index - 3)], dtype=float)
+        after = np.asarray(path[min(len(path) - 1, index + 3)], dtype=float)
+        tangent = after - before
+        norm = float(np.linalg.norm(tangent))
+        normal = np.array([-tangent[1], tangent[0]]) / norm if norm else np.array([1., 0.])
+        slip = rng.choice((-1, 1)) * rng.uniform(4.0, 7.0)
+        points += np.exp(-0.5 * ((distances - center) / radius) ** 2)[:, None] * normal * slip
+    if bounds is not None:
+        points = np.clip(points, (0, 0), (bounds[0] - 1, bounds[1] - 1))
+    result = []
+    for x, y in np.rint(points).astype(int):
+        point = (int(x), int(y))
+        if not result or result[-1] != point:
+            result.append(point)
+    return result
+
+
+def input_trace_paths(paths, origin, point_delay=0.001, bounds=None):
     """Draw detected local-coordinate paths at the given screen origin."""
     origin_x, origin_y = origin
     for path in paths:
+        path = humanize_trace_path(path, bounds=bounds)
+        if not path:
+            continue
         screen_path = [(origin_x + x, origin_y + y) for x, y in path]
         start_x, start_y = screen_path[0]
-        move_mouse_smooth(start_x, start_y, duration=0.12)
+        move_mouse_smooth(start_x, start_y, duration=random.uniform(0.06, 0.10))
         hold_left_mouse_button(start_x, start_y)
+        last_x, last_y = start_x, start_y
+        pace = random.uniform(0.65, 1.15)
+        travel = 0.0
+        previous = screen_path[0]
+        step = random.uniform(2.0, 3.5)
         try:
-            for x, y in screen_path[1:]:
+            for index, (x, y) in enumerate(screen_path[1:], 1):
+                travel += ((x - previous[0]) ** 2 + (y - previous[1]) ** 2) ** 0.5
+                previous = (x, y)
+                if travel < step and index != len(screen_path) - 1:
+                    continue
                 _move_held(x, y)
-                time.sleep(point_delay)
+                last_x, last_y = x, y
+                time.sleep(max(0.0, point_delay) * travel * pace * random.uniform(0.75, 1.25))
+                travel = 0.0
         finally:
-            end_x, end_y = screen_path[-1]
-            release_left_mouse_button(end_x, end_y)
+            release_left_mouse_button(last_x, last_y)
 
 
-def trace_dark_glyph(area, point_delay=0.002, debug_path=None):
+def trace_dark_glyph(area, point_delay=0.001, debug_path=None):
     """Capture, detect, and trace a glyph within ``(left, top, right, bottom)``."""
     left, top, right, bottom = (int(value) for value in area)
     screenshot = pyautogui.screenshot(region=(left, top, right - left, bottom - top))
@@ -247,7 +306,8 @@ def trace_dark_glyph(area, point_delay=0.002, debug_path=None):
     if debug_path:
         cv2.imwrite(debug_path, glyph_mask)
     logger.info(f"Detected trace glyph in {len(paths)} connected stroke(s)")
-    input_trace_paths(paths, (left, top), point_delay=point_delay)
+    input_trace_paths(paths, (left, top), point_delay=point_delay,
+                      bounds=(right - left, bottom - top))
     return True
 
 
@@ -311,7 +371,7 @@ def find_trace_areas(screen_bgr):
     return sorted(areas, key=lambda area: (area[1], area[0]))
 
 
-def trace_glyphs_on_screen(point_delay=0.002):
+def trace_glyphs_on_screen(point_delay=0.001):
     """Screenshot the full screen, find trace prompts, and complete them."""
     screenshot = pyautogui.screenshot()
     screen_bgr = cv2.cvtColor(np.asarray(screenshot), cv2.COLOR_RGB2BGR)
@@ -328,7 +388,8 @@ def trace_glyphs_on_screen(point_delay=0.002):
         if not paths:
             continue
         logger.info(f"Tracing glyph at {(left, top, right, bottom)} with {len(paths)} stroke(s)")
-        input_trace_paths(paths, (left, top), point_delay=point_delay)
+        input_trace_paths(paths, (left, top), point_delay=point_delay,
+                          bounds=(right - left, bottom - top))
         completed += 1
     return completed
 
@@ -413,7 +474,8 @@ def run_full_trace_procedure(screen_area, rounds=2, detection_delay=(5.0, 7.0)):
                 f"Round {round_number}: tracing glyph at "
                 f"{absolute_area} with {len(paths)} stroke(s)"
             )
-            input_trace_paths(paths, (absolute_area[0], absolute_area[1]))
+            input_trace_paths(paths, (absolute_area[0], absolute_area[1]),
+                              bounds=(local_right - local_left, local_bottom - local_top))
 
         if not click_complete_button(screen_area):
             return False

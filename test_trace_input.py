@@ -1,5 +1,6 @@
 """Offline trace regressions; never move or click the mouse."""
 
+import random
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +11,50 @@ import trace_input as trace
 
 
 class TraceTests(unittest.TestCase):
+    def test_drift_and_slips_are_smooth_and_replayable(self):
+        path = [(x, 30) for x in range(10, 190)]
+        normal = trace.humanize_trace_path(path, mistake_chance=0, rng=random.Random(7))
+        slipped = trace.humanize_trace_path(path, mistake_chance=1, rng=random.Random(7))
+        self.assertEqual(slipped, trace.humanize_trace_path(
+            path, mistake_chance=1, rng=random.Random(7)))
+        self.assertGreater(len({y for _, y in normal}), 1)
+        self.assertLessEqual(max(abs(y - 30) for _, y in normal), 2)
+        self.assertGreater(max(abs(y - 30) for _, y in slipped), 3)
+        self.assertTrue(all(max(abs(x - a), abs(y - b)) <= 3
+                            for (x, y), (a, b) in zip(slipped, slipped[1:])))
+        self.assertNotEqual(normal, trace.humanize_trace_path(
+            path, mistake_chance=0, rng=random.Random(8)))
+
+    def test_curves_stay_in_drawing_area_and_short_paths_work(self):
+        path = [(int(20 + 20 * np.cos(t)), int(20 + 20 * np.sin(t)))
+                for t in np.linspace(0, 2 * np.pi, 200)]
+        result = trace.humanize_trace_path(path, bounds=(40, 40),
+                                           mistake_chance=1, rng=random.Random(4))
+        self.assertNotEqual(result, path)
+        self.assertTrue(all(0 <= x < 40 and 0 <= y < 40 for x, y in result))
+        self.assertEqual(trace.humanize_trace_path([]), [])
+        self.assertEqual(trace.humanize_trace_path([(0, 0)], bounds=(1, 1)), [(0, 0)])
+
+    def test_drawing_is_faster_variable_and_releases_on_error(self):
+        path = [(x, 30) for x in range(100)]
+        with patch.object(trace, 'random', random.Random(11)), \
+                patch.object(trace, 'move_mouse_smooth'), \
+                patch.object(trace, 'hold_left_mouse_button'), \
+                patch.object(trace, 'release_left_mouse_button') as release, \
+                patch.object(trace, '_move_held') as move, \
+                patch.object(trace.time, 'sleep') as sleep:
+            trace.input_trace_paths([[], path], (100, 200), bounds=(110, 60))
+            self.assertLess(move.call_count, 70)
+            delays = [call.args[0] for call in sleep.call_args_list]
+            self.assertGreater(len(set(delays)), 1)
+            self.assertLess(sum(delays), 0.198)
+            release.assert_called_once_with(*move.call_args.args)
+            release.reset_mock()
+            move.side_effect = RuntimeError('input interrupted')
+            with self.assertRaises(RuntimeError):
+                trace.input_trace_paths([path], (100, 200))
+            release.assert_called_once()
+
     def test_long_stroke_exceeds_recursive_depth(self):
         mask = np.zeros((3, 2002), dtype=np.uint8)
         mask[1, 1:2001] = 255

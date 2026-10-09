@@ -23,6 +23,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+# PaddleOCR's dependencies raise the root logger to WARNING on import.
+# Keep application messages enabled independently of third-party logging setup.
+logger.setLevel(logging.DEBUG)
 
 # if __name__ == "__main__":
 #     logger.debug("Debug message: for detailed internal states.")

@@ -16,6 +16,7 @@ from config import *
 from helpers import *
 from logger import logger
 from trace_input import run_full_trace_procedure
+from lottery_completion import make_completion_check
 
 class state(ABC):
     def __init__(self, name):
@@ -64,7 +65,15 @@ class perform_menghuan_lottery(state):
         for area, val in zip(menghuan_lottery_areas, vals):
             logger.info(f"menghuan_lottery at {area} with val: {val}")
             if area is not None:
-                scratch_horizontally(area)
+                window = next((window for window in window_capture_areas_
+                               if window[0] <= area[0] < area[2] <= window[0] + window[2]
+                               and window[1] <= area[1] < area[3] <= window[1] + window[3]), None)
+                check = (make_completion_check(area, window, lottery_close_path)
+                         if window is not None else None)
+                # Visual detection can stop early; one full pass is the hard limit.
+                completed = scratch_horizontally(area, completion_check=check)
+                if not completed:
+                    logger.info("Lottery full scratch pass finished; stopping regardless of visual check")
 
         lottery_close_clicks, vals = im.find_icon_each_window(lottery_close_path, threshold=0.8)
         for click, val in zip(lottery_close_clicks, vals):
@@ -583,9 +592,22 @@ class perform_dungeon_normal(state):
 @register_state
 class perform_zhuagui(state):
     rounds = 5
+    main_instance = False
 
     def execute(self):
+        if self.main_instance:
+            from arrange_inventory_main import arrange_inventory
+        else:
+            from arrange_inventory import arrange_inventory
+            from huoli_utilize import huoli_sell
+
+        arrange_inventory()
+        if not self.main_instance:
+            huoli_sell()
         helper_actions.perform_zhuagui(rounds=self.rounds)
+        arrange_inventory()
+        if not self.main_instance:
+            huoli_sell()
 
 @register_state
 class perform_wenqu(state):

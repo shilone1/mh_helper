@@ -109,6 +109,7 @@ def apply_count_config(config):
     state.perform_dungeon_elite.count = config["elite_dungeons"]
     state.perform_dungeon_normal.count = config["normal_dungeons"]
     state.perform_zhuagui.rounds = config["zhuagui_rounds"]
+    state.perform_zhuagui.main_instance = config.get("main_instance", False)
     # state.py imports config values with `from config import *`, so update the
     # value in state.py's namespace before perform_mijing executes.
     state.Mijing_MAX_TRY_OUTS = config["mijing_max_try_outs"]

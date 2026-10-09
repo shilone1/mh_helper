@@ -323,9 +323,11 @@ def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area
 
     reset_inventory_to_top(window_capture_areas_, drag_area)
 
+    # Arrangement passes do not consume the downward-scroll budget.
+    arrange_count = 0
     scroll_count = 0
 
-    while scroll_count < max_scrolls:
+    while True:
         matches = im.find_icons_from_each_window(icon_tasks, window_capture_areas)
 
         # if not matches:
@@ -341,8 +343,12 @@ def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area
             if tag in action_map:
                 action_map[tag](bbox_list)
 
+        # Always scan the position reached by the final permitted scroll.
+        if arrange_count >= 2 and scroll_count >= max_scrolls:
+            break
+
         for window in window_capture_areas_:
-            if scroll_count < 2:
+            if arrange_count < 2:
                 result, val = im.find_icon_on_screen(inventory_unselected_path, screen_area=window, threshold=0.98)
                 logger.info(f"unselected inventories are at {result} with val: {val}") 
                 if result:
@@ -355,7 +361,10 @@ def process_inventory_with_scrolling(icon_tasks, window_capture_areas, drag_area
             else:
                 drag_inventory(window, direction="down", drag_area=drag_area)
         time.sleep(random.uniform(1.5, 2.5))
-        scroll_count += 1
+        if arrange_count < 2:
+            arrange_count += 1
+        else:
+            scroll_count += 1
 
     reset_inventory_to_top(window_capture_areas_, drag_area)
 
